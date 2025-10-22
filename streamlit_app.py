@@ -1,56 +1,68 @@
 import streamlit as st
-from openai import OpenAI
 
-# Show title and description.
-st.title("💬 DAEWON")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+st.set_page_config(page_title="우리학교 미니 커뮤니티")
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# 세션 상태에 게시글/댓글 데이터 저장
+if 'posts' not in st.session_state:
+    st.session_state.posts = []
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# 메뉴 탭
+tabs = st.tabs(["게시판", "시간표", "급식"])
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+with tabs[0]:
+    st.header("게시판")
+    nickname = st.text_input("닉네임", value="", max_chars=20)
+    content = st.text_area("내용을 입력하세요", height=100)
+    if st.button("올리기"):
+        if content.strip() == "":
+            st.warning("내용을 입력해주세요")
+        else:
+            st.session_state.posts.insert(0, {
+                "nickname": nickname if nickname.strip() != "" else "익명",
+                "content": content,
+                "comments": []
+            })
+            st.experimental_rerun()
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # 게시글과 댓글 출력
+    for idx, post in enumerate(st.session_state.posts):
+        st.markdown(f"### {post['nickname']}")
+        st.write(post['content'])
+        # 댓글 리스트
+        for cmt in post['comments']:
+            st.markdown(f"- {cmt}")
+        # 댓글 입력창
+        comment_key = f"comment_input_{idx}"
+        comment_input = st.text_input("댓글을 입력하세요", key=comment_key)
+        comment_button_key = f"comment_button_{idx}"
+        if st.button("등록", key=comment_button_key):
+            if comment_input.strip() != "":
+                st.session_state.posts[idx]['comments'].append(comment_input)
+                st.experimental_rerun()
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+with tabs[1]:
+    st.header("🗓️ 시간표")
+    timetableData = {
+        "1-1": {"월":"수학","화":"영어","수":"과학","목":"체육","금":"미술"},
+        "1-2": {"월":"국어","화":"영어","수":"과학","목":"음악","금":"체육"},
+        "2-1": {"월":"수학","화":"영어","수":"과학","목":"역사","금":"체육"},
+        "2-2": {"월":"국어","화":"수학","수":"과학","목":"영어","금":"체육"}
+    }
+    grade = st.selectbox("학년/반 선택", options=list(timetableData.keys()))
+    data = timetableData[grade]
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    st.table({
+        day: [subject] for day, subject in data.items()
+    })
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
-
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+with tabs[2]:
+    st.header("🍽️ 급식")
+    mealData = {
+        "월": "김밥, 된장국, 과일",
+        "화": "볶음밥, 미트볼, 샐러드",
+        "수": "라면, 계란말이, 김치",
+        "목": "비빔밥, 미소국, 오이무침",
+        "금": "돈까스, 밥, 샐러드"
+    }
+    day = st.selectbox("요일 선택", options=list(mealData.keys()))
+    st.write(mealData[day])
