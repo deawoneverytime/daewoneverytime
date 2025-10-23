@@ -1,2 +1,4 @@
 streamlit
 openai
+pip install flask
+python app.py
