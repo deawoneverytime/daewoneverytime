@@ -1,4 +1,4 @@
 streamlit
 openai
-pip
+flask
 app.py
