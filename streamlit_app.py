@@ -53,6 +53,7 @@ def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
+    # users 테이블 (5개 컬럼)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
@@ -61,6 +62,7 @@ def init_db():
         created_at TEXT
     )''')
 
+    # posts 테이블 (7개 컬럼)
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -71,6 +73,7 @@ def init_db():
         likes INTEGER DEFAULT 0
     )''')
 
+    # comments 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER,
@@ -81,6 +84,7 @@ def init_db():
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
 
+    # likes 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS likes (
         username TEXT,
         post_id INTEGER,
@@ -99,10 +103,11 @@ def hash_password(password):
 # ✅ 사용자 정의 DB 함수
 
 def get_post_by_id(post_id):
-    """특정 ID의 게시글을 가져옵니다."""
+    """특정 ID의 게시글을 가져옵니다. (수정: 컬럼 명시)"""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM posts WHERE id = ?", (post_id,))
+    # FIX: SELECT * 대신 7개의 컬럼을 명시적으로 선택합니다.
+    c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
     return post
@@ -155,7 +160,7 @@ def create_post(title, content, is_anonymous=False):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
+                  VALUES (?, ?, ?, ?, ?)''',
               (title, content, author, st.session_state.username,
                datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
@@ -192,7 +197,7 @@ def add_comment(post_id, content, is_anonymous=False):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     c.execute('''INSERT INTO comments (post_id, author, real_author, content, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
+                  VALUES (?, ?, ?, ?, ?)''',
               (post_id, author, st.session_state.username, content,
                datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
@@ -214,6 +219,7 @@ def go_to_detail(post_id):
     """게시글 상세 페이지로 이동하며 ID 저장."""
     st.session_state.page = "detail"
     st.session_state.selected_post_id = post_id
+    # st.rerun() 대신 st.experimental_rerun() 또는 st.rerun()을 사용 (Streamlit 버전 고려)
     st.rerun()
 
 # ✅ 로그인 페이지
@@ -242,15 +248,14 @@ def show_login_page():
             st.session_state.page = "signup"
             st.rerun()
 
-# ✅ 회원가입 페이지 (구현 생략 - 기존 로직 재활용)
+# ✅ 회원가입 페이지
 def show_signup_page():
-    # 이 부분은 변경 없음
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
     def signup(username, password, email, student_id):
         if not re.match(EMAIL_REGEX, email) or not re.match(PASSWORD_REGEX, password):
-            return False, "입력 형식을 확인하세요."
+            return False, "입력 형식을 확인하세요. 비밀번호는 8자 이상, 대/소문자/숫자 포함해야 합니다."
         try:
             c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", (
                 username, hash_password(password), email, student_id,
@@ -320,6 +325,9 @@ def show_home_page():
         
         # 제목을 클릭하면 상세 페이지로 이동
         with col1:
+            # 제목을 버튼 대신 markdown과 click handler를 사용하는 방식으로 변경하여 클릭 영역 확대
+            # 이전에 사용된 방식은 Streamlit의 Button 재사용 문제로 인해 오류를 발생시킬 수 있습니다.
+            # 하지만 원본 코드를 최대한 유지하며, Streamlit의 고유 key 관리를 위해 button을 유지합니다.
             if st.button(title, key=f"post_title_{post_id}", use_container_width=True):
                 go_to_detail(post_id)
         
@@ -330,6 +338,7 @@ def show_home_page():
 
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
+    # 수정된 get_post_by_id 함수를 사용합니다.
     post = get_post_by_id(post_id)
     if not post:
         st.error("존재하지 않는 게시글입니다.")
@@ -338,6 +347,7 @@ def show_post_detail(post_id):
             st.rerun()
         return
 
+    # 7개의 컬럼이 정확히 매핑됩니다.
     post_id, title, content, author, real_author, created_at, likes = post
     username = st.session_state.username
 
@@ -386,9 +396,16 @@ def show_post_detail(post_id):
     if comments:
         for c in comments:
             c_author, c_content, c_created = c
-            st.markdown(f"**👤 {c_author}** | <small>_{c_created}_</small>", unsafe_allow_html=True)
-            st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;{c_content}")
-            st.markdown("---")
+            # 댓글 표시 형식 개선
+            st.markdown(f"""
+            <div style="padding: 10px 0; border-bottom: 1px solid #eee;">
+                <p style="margin: 0;">
+                    <span style="font-weight: bold; color: #555;">👤 {c_author}</span>
+                    <span style="font-size: 0.8em; color: #999;"> | {c_created}</span>
+                </p>
+                <p style="margin: 5px 0 0 15px;">{c_content}</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.info("아직 댓글이 없습니다.")
 
@@ -399,19 +416,18 @@ def show_post_detail(post_id):
         
         colA, colB = st.columns([3, 1])
         with colA:
-            anonymous = st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}")
+            anonymous = st.checkbox("익명으로 작성 (댓글 작성자: 익명)", key=f"anon_comment_{post_id}")
         with colB:
             if st.form_submit_button("댓글 등록", use_container_width=True, type="primary"):
                 if comment_text.strip():
                     add_comment(post_id, comment_text, anonymous)
                     st.success("댓글이 등록되었습니다.")
-                    # form을 사용했기 때문에 text_area는 자동으로 비워짐. 페이지 상태만 업데이트
                     st.rerun()
                 else:
                     st.warning("댓글 내용을 입력하세요.")
 
 
-# ✅ 글쓰기 페이지 (기존 로직 유지)
+# ✅ 글쓰기 페이지
 def show_write_page():
     st.markdown('<p class="sub-header">✍️ 새 글 작성</p>', unsafe_allow_html=True)
     
@@ -435,23 +451,31 @@ def show_write_page():
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지 (기존 로직 유지)
+# ✅ 프로필 페이지 (수정: 컬럼 명시)
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username = ?", (st.session_state.username,))
+    
+    # FIX: SELECT * 대신 5개의 컬럼을 명시적으로 선택합니다. (password는 사용하지 않으므로 포함 후 무시)
+    c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
 
     if user:
+        # DB에서 가져온 5개 컬럼 중 password(_)를 제외하고 4개만 사용
         username, _, email, student_id, created = user
         st.metric(label="아이디", value=username)
         st.metric(label="이메일", value=email)
         st.metric(label="학번", value=student_id)
         st.metric(label="가입일", value=created)
+        
+        # 비밀번호 변경 등 추가 기능은 생략
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
+        if st.button("홈으로 돌아가기", key="profile_error_back"):
+            st.session_state.page = "home"
+            st.rerun()
 
 # ✅ 메인 실행
 def main():
