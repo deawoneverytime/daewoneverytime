@@ -331,14 +331,16 @@ def show_home_page():
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
     post = get_post_by_id(post_id)
-    if not post:
-        st.error("존재하지 않는 게시글입니다.")
-        if st.button("목록으로 돌아가기"):
-            st.session_state.page = "home"
-            st.rerun()
-        return
+# 게시글이 없거나 데이터 형식이 예상과 다를 경우 방어 코드 추가
+if not post or len(post) < 7:
+    st.error("존재하지 않는 게시글입니다.")
+    if st.button("목록으로 돌아가기"):
+        st.session_state.page = "home"
+        st.rerun()
+    return
 
-    post_id, title, content, author, real_author, created_at, likes = post
+# 안전하게 7개만 언패킹
+post_id, title, content, author, real_author, created_at, likes = post[:7]
     username = st.session_state.username
 
     st.markdown(f'## {title}')
