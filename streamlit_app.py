@@ -7,7 +7,7 @@ from datetime import datetime
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
-# ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS
+# ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS (게시글 간격 및 클린 목록 스타일 적용)
 STYLING = """
 <style>
 /* 메인 제목 스타일 */
@@ -68,56 +68,11 @@ div[data-testid^="stHorizontalBlock"] {
     margin-bottom: 0px !important;
 }
 
-/* 💡 고정된 오른쪽 하단 통계 박스 스타일 */
-.fixed-stats {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background-color: #ffffff;
-    border: 1px solid #1E90FF;
-    border-radius: 10px;
-    padding: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* 좀 더 눈에 띄게 */
-    z-index: 1000;
-    width: 180px;
-}
-.stats-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 5px;
-    font-size: 1.1em;
-}
-
-/* 💡 프로필 카드 스타일 (show_profile_page용) */
-.profile-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 20px;
-    background-color: #ffffff;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    max-width: 450px;
-    margin: 30px auto;
-}
-.profile-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px dashed #f0f0f0;
-}
-.profile-item:last-child {
-    border-bottom: none;
-}
-.profile-label {
-    font-weight: 600;
-    color: #555;
-    width: 30%;
-}
-.profile-value {
+/* 좋아요 수 표시 스타일 (상세 페이지) */
+.metric-heart {
+    font-size: 1.2em;
     font-weight: 700;
-    color: #1E90FF; /* Blue accent */
-    width: 65%;
-    text-align: right;
+    color: #FF4B4B; /* Red for Likes */
 }
 </style>
 """
@@ -141,16 +96,14 @@ def init_db():
         created_at TEXT
     )''')
 
-    # 💡 posts 테이블에 views 컬럼 추가
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
         content TEXT,
-        author TEXT,        -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,   -- 실제 작성자 (아이디, 삭제 권한 확인용)
+        author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
+        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
         created_at TEXT,
-        likes INTEGER DEFAULT 0,
-        views INTEGER DEFAULT 0 -- 💡 조회수 컬럼
+        likes INTEGER DEFAULT 0
     )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
@@ -181,22 +134,14 @@ def hash_password(password):
 # ✅ 사용자 정의 DB 함수
 
 def get_post_by_id(post_id):
-    """
-    특정 ID의 게시글을 가져오고, 조회수를 1 증가시킵니다.
-    (id, title, content, author, real_author, created_at, likes, views) 8개 컬럼 반환
-    """
+    """특정 ID의 게시글을 가져옵니다. (컬럼 명시)"""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    
-    # 1. 조회수 증가 (조회 행위 시점)
-    c.execute("UPDATE posts SET views = views + 1 WHERE id = ?", (post_id,))
-    conn.commit()
-    
-    # 2. 게시글 데이터 가져오기 (8개 컬럼)
-    c.execute("SELECT id, title, content, author, real_author, created_at, likes, views FROM posts WHERE id = ?", (post_id,))
+    c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
-    return post
+    # 컬럼이 7개이므로 7개를 반환합니다: (id, title, content, author, real_author, created_at, likes)
+    return post 
 
 def login(username, password):
     """로그인 처리."""
@@ -245,19 +190,18 @@ def create_post(title, content, is_anonymous=False):
     author = "익명" if is_anonymous else st.session_state.username
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    # 💡 created_at은 실제 날짜와 시간을 정확히 반영
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
     c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
                   VALUES (?, ?, ?, ?, ?)''',
-              (title, content, author, st.session_state.username, current_time))
+              (title, content, author, st.session_state.username,
+               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
 
 def get_all_posts():
-    """모든 게시글을 최신순으로 가져오기 (id, title, author, created_at, likes)."""
+    """모든 게시글을 최신순으로 가져오기."""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    # views 컬럼은 목록에 표시하지 않으므로 5개 컬럼만 가져옵니다.
+    # id, title, author, created_at, likes 순서로 5개 컬럼을 가져옵니다.
     c.execute("SELECT id, title, author, created_at, likes FROM posts ORDER BY id DESC")
     posts = c.fetchall()
     conn.close()
@@ -344,10 +288,9 @@ def show_signup_page():
         if not re.match(EMAIL_REGEX, email) or not re.match(PASSWORD_REGEX, password):
             return False, "입력 형식을 확인하세요. 비밀번호는 8자 이상, 대/소문자/숫자 포함해야 합니다."
         try:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", (
                 username, hash_password(password), email, student_id,
-                current_time
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ))
             conn.commit()
             return True, "회원가입이 완료되었습니다!"
@@ -421,7 +364,7 @@ def show_home_page():
                 go_to_detail(post_id)
         
         # 3. 나머지 정보 표시 (정렬 및 간격 조절을 위해 st.markdown 사용)
-        # created_at[:10]으로 날짜만 표시하여 목록의 간결함을 유지합니다.
+        # padding: 5px 0을 사용하여 세로 간격을 버튼과 비슷하게 맞춥니다.
         col2.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{author}</div>', unsafe_allow_html=True)
         col3.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{created_at[:10]}</div>', unsafe_allow_html=True)
         col4.markdown(f'<div style="text-align: right; font-weight: 700; color: #FF4B4B; padding: 5px 0;">{likes}</div>', unsafe_allow_html=True)
@@ -432,8 +375,7 @@ def show_home_page():
 
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
-    # get_post_by_id 함수 내에서 조회수가 1 증가됩니다.
-    post = get_post_by_id(post_id) 
+    post = get_post_by_id(post_id)
     if not post:
         st.error("존재하지 않는 게시글입니다.")
         if st.button("목록으로 돌아가기"):
@@ -441,34 +383,17 @@ def show_post_detail(post_id):
             st.rerun()
         return
 
-    # 8개의 컬럼: id, title, content, author, real_author, created_at, likes, views 💡views 추가
-    post_id, title, content, author, real_author, created_at, likes, views = post
+    # 7개의 컬럼: id, title, content, author, real_author, created_at, likes
+    post_id, title, content, author, real_author, created_at, likes = post
     username = st.session_state.username
 
     st.markdown(f'## {title}')
-    # 💡 작성일시 (created_at)는 정확한 시간까지 표시됩니다.
-    st.caption(f"**작성자:** {author} | **작성일시:** {created_at} | **❤️ {likes}**") 
+    st.caption(f"**작성자:** {author} | **작성일:** {created_at} | **❤️ {likes}**")
     st.divider()
     
     # 게시글 내용
     st.write(content)
     st.divider()
-    
-    # 💡 오른쪽 하단에 하트수와 조회수 표시 (Fixed Stats Box)
-    st.markdown(f"""
-    <div class="fixed-stats">
-        <div style="font-weight: 700; color: #1E90FF; margin-bottom: 10px; font-size: 1.2em;">📊 통계 정보</div>
-        <div class="stats-item">
-            <span style="color: #FF4B4B;">❤️ 하트 수</span>
-            <span style="font-weight: 800; color: #FF4B4B;">{likes}</span>
-        </div>
-        <div class="stats-item">
-            <span style="color: #4CAF50;">👀 조회 수</span>
-            <span style="font-weight: 800; color: #4CAF50;">{views}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
 
     col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
     
@@ -562,7 +487,7 @@ def show_write_page():
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지 (💡깔끔하고 센스있게 개선)
+# ✅ 프로필 페이지
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
@@ -575,29 +500,10 @@ def show_profile_page():
     if user:
         # DB에서 가져온 5개 컬럼 중 password(_)를 제외하고 4개만 사용
         username, _, email, student_id, created = user
-        
-        # 💡 깔끔하고 센스있는 정보 표시를 위해 커스텀 HTML 카드 사용
-        st.markdown(f"""
-        <div class="profile-card">
-            <div style="text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #1E90FF;">
-                <h3 style="font-size: 1.8em; font-weight: 800; color: #1E90FF; margin: 0;">{username}</h3>
-                <p style="color: #999; font-size: 0.85em; margin-top: 5px;">가입일: {created}</p>
-            </div>
-            
-            <div class="profile-item">
-                <span class="profile-label">아이디</span>
-                <span class="profile-value">{username}</span>
-            </div>
-            <div class="profile-item">
-                <span class="profile-label">이메일</span>
-                <span class="profile-value">{email}</span>
-            </div>
-            <div class="profile-item">
-                <span class="profile-label">학번</span>
-                <span class="profile-value">{student_id}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric(label="아이디", value=username)
+        st.metric(label="이메일", value=email)
+        st.metric(label="학번", value=student_id)
+        st.metric(label="가입일", value=created)
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
         if st.button("홈으로 돌아가기", key="profile_error_back"):
