@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 
 # ✅ 페이지 설정
-st.set_page_config(page_title="대원대학교 에브리타임", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
 # ✅ 이메일 & 비밀번호 정규식
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -17,6 +17,7 @@ def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
+    # 1. 사용자 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
@@ -25,6 +26,7 @@ def init_db():
         created_at TEXT
     )''')
 
+    # 2. 게시글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -35,6 +37,7 @@ def init_db():
         likes INTEGER DEFAULT 0
     )''')
 
+    # 3. 댓글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER,
@@ -42,6 +45,15 @@ def init_db():
         real_author TEXT,
         content TEXT,
         created_at TEXT,
+        FOREIGN KEY(post_id) REFERENCES posts(id)
+    )''')
+
+    # 4. 좋아요 기록 테이블 (사용자당 1회 제한을 위한 테이블)
+    c.execute('''CREATE TABLE IF NOT EXISTS likes (
+        username TEXT,
+        post_id INTEGER,
+        created_at TEXT,
+        PRIMARY KEY (username, post_id),
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
 
@@ -58,7 +70,7 @@ def signup(username, password, email, student_id):
     if not re.match(EMAIL_REGEX, email):
         return False, "잘못된 이메일 형식입니다. (예: example@domain.com)"
 
-    # 🔥🔥🔥 비밀번호 강도 검증 로직 (요청하신 부분) 🔥🔥🔥
+    # 비밀번호 강도 검증
     if not re.match(PASSWORD_REGEX, password):
         return False, (
             "비밀번호는 8자 이상이어야 하며, "
@@ -68,13 +80,13 @@ def signup(username, password, email, student_id):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # 🔥🔥🔥 아이디 중복 확인 로직 (요청하신 부분) 🔥🔥🔥
+    # 아이디 중복 확인
     c.execute("SELECT * FROM users WHERE username = ?", (username,))
     if c.fetchone():
         conn.close()
         return False, "이미 존재하는 아이디입니다."
 
-    # 🔥🔥🔥 이메일 중복 확인 로직 (요청하신 부분) 🔥🔥🔥
+    # 이메일 중복 확인
     c.execute("SELECT * FROM users WHERE email = ?", (email,))
     if c.fetchone():
         conn.close()
@@ -90,7 +102,7 @@ def signup(username, password, email, student_id):
     ))
     conn.commit()
     conn.close()
-    return True, "회원가입이 완료되었습니다!"
+    return True, "회원가입이 완료되었습니다! 로그인해 주세요."
 
 # ✅ 로그인
 def login(username, password):
@@ -110,6 +122,38 @@ def login(username, password):
     st.session_state.logged_in = True
     st.session_state.username = username
     return True, "로그인 성공!"
+
+# ✅ 좋아요 기능 (좋아요/취소 토글)
+def like_post(post_id, username):
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+
+    # 1. 좋아요 중복 확인
+    c.execute("SELECT * FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
+    if c.fetchone():
+        # 좋아요 기록이 있다면 -> 좋아요 취소
+        c.execute("UPDATE posts SET likes = likes - 1 WHERE id = ?", (post_id,))
+        c.execute("DELETE FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
+        conn.commit()
+        conn.close()
+        return True, "좋아요를 취소했습니다.", True  # is_unlike = True
+    else:
+        # 좋아요 기록이 없다면 -> 좋아요 추가
+        c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
+        c.execute("INSERT INTO likes (username, post_id, created_at) VALUES (?, ?, ?)",
+                  (username, post_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+        conn.close()
+        return True, "좋아요를 눌렀습니다!", False  # is_unlike = False
+
+# ✅ 사용자가 해당 게시물에 좋아요를 눌렀는지 확인
+def has_user_liked(post_id, username):
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
+    liked = c.fetchone() is not None
+    conn.close()
+    return liked
 
 # ✅ 게시글 작성
 def create_post(title, content, is_anonymous=False):
@@ -167,49 +211,61 @@ def get_comments(post_id):
     conn.close()
     return comments
 
-# ✅ 좋아요 기능
-def like_post(post_id):
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
-    conn.commit()
-    conn.close()
+# --- 페이지 함수 재구성 ---
 
-# ✅ 로그인 / 회원가입 페이지
+# ✅ 로그인 페이지
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🎓 대원대학교 에브리타임")
-        st.subheader("로그인 / 회원가입")
+        st.title("🎓 대원타임")
+        st.subheader("로그인")
 
-        tab1, tab2 = st.tabs(["로그인", "회원가입"])
+        username = st.text_input("아이디", key="login_user")
+        password = st.text_input("비밀번호", type="password", key="login_pw")
+        if st.button("로그인", use_container_width=True, key="login_btn"):
+            success, msg = login(username, password)
+            if success:
+                st.success(msg)
+                st.balloons()
+                st.session_state.page = "home" # 로그인 성공 시 홈으로 이동
+                st.rerun()
+            else:
+                st.error(msg)
 
-        with tab1:
-            username = st.text_input("아이디")
-            password = st.text_input("비밀번호", type="password")
-            if st.button("로그인", use_container_width=True):
-                success, msg = login(username, password)
-                if success:
-                    st.success(msg)
-                    st.balloons()
-                    st.rerun()
-                else:
-                    st.error(msg)
+        st.markdown("---")
+        st.markdown("계정이 없으신가요?")
+        if st.button("회원가입하기", use_container_width=True, key="go_to_signup"):
+            st.session_state.page = "signup"
+            st.rerun()
 
-        with tab2:
-            username = st.text_input("아이디", key="signup_user")
-            # 비밀번호 입력 필드 바로 아래에 강도 제약 조건을 표시합니다.
-            password = st.text_input("비밀번호", type="password", key="signup_pw",
-                                     help="8자 이상, 대문자, 소문자, 숫자 포함")
-            email = st.text_input("이메일")
-            student_id = st.text_input("학번")
+# ✅ 회원가입 페이지 (분리)
+def show_signup_page():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🎓 대원타임")
+        st.subheader("회원가입")
 
-            if st.button("회원가입", use_container_width=True):
-                success, msg = signup(username, password, email, student_id)
-                if success:
-                    st.success(msg)
-                else:
-                    st.error(msg)
+        username = st.text_input("아이디", key="signup_user_p2")
+        # 비밀번호 입력 필드 바로 아래에 강도 제약 조건을 표시합니다.
+        password = st.text_input("비밀번호", type="password", key="signup_pw_p2",
+                                 help="8자 이상, 대문자, 소문자, 숫자 포함")
+        email = st.text_input("이메일", key="signup_email_p2")
+        student_id = st.text_input("학번", key="signup_sid_p2")
+
+        if st.button("회원가입 완료", use_container_width=True, key="signup_btn_p2"):
+            success, msg = signup(username, password, email, student_id)
+            if success:
+                st.success(msg)
+                st.session_state.page = "login" # 성공 시 로그인 페이지로 복귀
+                st.rerun()
+            else:
+                st.error(msg)
+
+        st.markdown("---")
+        if st.button("로그인 페이지로 돌아가기", key="go_to_login", use_container_width=True):
+            st.session_state.page = "login"
+            st.rerun()
+
 
 # ✅ 게시판 페이지
 def show_home_page():
@@ -225,6 +281,10 @@ def show_home_page():
 
     for post in posts:
         post_id, title, content, author, real_author, created_at, likes = post
+        
+        # 현재 사용자가 좋아요를 눌렀는지 확인
+        is_liked = has_user_liked(post_id, st.session_state.username)
+
         with st.container(border=True):
             st.subheader(f"📝 {title}")
             st.caption(f"{author} | {created_at}")
@@ -233,9 +293,15 @@ def show_home_page():
 
             col1, col2, col3 = st.columns([1, 1, 4])
             with col1:
-                if st.button("❤️ 좋아요", key=f"like_{post_id}"):
-                    like_post(post_id)
-                    st.rerun()
+                like_label = "❤️ 좋아요 취소" if is_liked else "🤍 좋아요"
+                if st.button(like_label, key=f"like_{post_id}"):
+                    success, msg, is_unlike = like_post(post_id, st.session_state.username)
+                    if success:
+                        if is_unlike:
+                            st.info(msg)
+                        else:
+                            st.success(msg)
+                        st.rerun()
             with col2:
                 if real_author == st.session_state.username:
                     if st.button("🗑️ 삭제", key=f"del_{post_id}"):
@@ -313,13 +379,15 @@ def main():
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
         st.session_state.username = None
-        st.session_state.page = "home"
+        st.session_state.page = "login" # 초기 페이지를 로그인으로 설정
 
     with st.sidebar:
-        st.title("🎓 대원대학교 커뮤니티")
+        st.title("🎓 대원 커뮤니티")
 
         if st.session_state.logged_in:
             st.success(f"**{st.session_state.username}**님 환영합니다!")
+            
+            # 로그인 시 메뉴
             if st.button("🏠 홈", use_container_width=True):
                 st.session_state.page = "home"
                 st.rerun()
@@ -330,16 +398,22 @@ def main():
                 st.session_state.page = "profile"
                 st.rerun()
             st.divider()
-            if st.button("🚪 로그아웃", use_container_width=True):
+            if st.button("로그아웃", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.username = None
-                st.session_state.page = "home"
+                st.session_state.page = "login" # 로그아웃 후 로그인 페이지로 이동
                 st.rerun()
         else:
             st.info("로그인이 필요합니다.")
 
+    # 페이지 라우팅
     if not st.session_state.logged_in:
-        show_login_page()
+        if st.session_state.page == "signup":
+            show_signup_page()
+        else:
+            # 기본값은 "login" 페이지
+            st.session_state.page = "login" 
+            show_login_page()
     else:
         if st.session_state.page == "home":
             show_home_page()
