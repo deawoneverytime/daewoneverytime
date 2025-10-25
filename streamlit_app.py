@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 
 # ✅ 페이지 설정
-st.set_page_config(page_title="대원대학교 에브리타임", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Daewontime", page_icon="🎓", layout="wide")
 
 # ✅ 정규식 설정
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -138,7 +138,7 @@ def like_post(post_id):
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🎓 대원대학교 에브리타임")
+        st.title("🎓 대원타임")
         st.subheader("로그인")
 
         username = st.text_input("아이디")
@@ -155,7 +155,7 @@ def show_login_page():
 
         st.markdown("---")
         st.markdown(
-            "계정이 없으신가요? 👉 [회원가입](#)",
+            "계정이 없으신가요?",
             unsafe_allow_html=True
         )
 
@@ -208,6 +208,9 @@ def show_home_page():
             like_post(post[0])
             st.rerun()
         st.divider()
+existing_like = Like.query.filter_by(user_id=user_id, post_id=post_id).first()
+    if existing_like:
+        return jsonify({'message': '이미 좋아요를 누르셨습니다.'}), 400
 
 # ✅ 페이지: 글쓰기
 def show_write_page():
