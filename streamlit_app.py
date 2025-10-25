@@ -11,28 +11,24 @@ st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 # ✅ 학교 목록 정의 (회원가입 드롭다운에 사용)
 SCHOOLS = ["대원고등학교", "대원여자고등학교", "대원외국어고등학교"]
 
-# ✅ CSS 스타일링: 심플하고 모던한 다크 테마 적용
+# ✅ CSS 스타일링: 심플하고 모던한 무채색(Achromatic) 모바일 테마 적용
 STYLING = """
 <style>
-/* 🎨 Dark & Clean Theme Colors */
+/* 🎨 Achromatic & Mobile Theme Colors */
 :root {
-    --bg-dark: #1E293B;      /* Slate/Dark Blue Background */
-    --bg-secondary: #334155; /* Secondary Card/Input Background */
-    --accent-blue: #38BDF8;  /* Sky Blue Accent for Primary actions */
-    --text-light: #F8FAFC;   /* Light Text */
-    --red-like: #F87171;     /* Soft Red for Likes */
-    --green-view: #4ADE80;   /* Soft Green for Views */
-    --border-subtle: #475569; /* Subtle Border */
+    --bg-dark: #1A1A1A;      /* Very Dark Gray Background */
+    --bg-secondary: #2C2C2C; /* Secondary Card/Input Background */
+    --accent: #BBBBBB;       /* Light Gray Accent for Primary actions & text */
+    --text-light: #FFFFFF;   /* White Text */
+    --metric-color: #AAAAAA; /* Subtle color for metrics (likes/views) */
+    --border-subtle: #444444; /* Subtle Border */
 }
-
-/* Streamlit Container Global Styles - (Partial Override) */
-/* Streamlit의 내부 스타일을 직접 건드리기는 어려우므로, Custom CSS를 통해 주요 요소만 제어합니다. */
 
 /* 메인 제목 스타일 */
 .main-title {
-    font-size: 2.8em;
+    font-size: 2.5em; /* 모바일에 적합하게 조정 */
     font-weight: 800;
-    color: var(--accent-blue); /* 포인트 색상 */
+    color: var(--accent); 
     text-align: center;
     margin-bottom: 25px;
     letter-spacing: -1px;
@@ -49,29 +45,38 @@ STYLING = """
     margin-bottom: 15px;
 }
 
-/* 게시글 목록 제목 스타일 */
-.post-list-title {
-    font-weight: 500;
-    color: var(--text-light);
-    cursor: pointer;
-    transition: color 0.2s;
+/* 게시글 목록 카드 스타일 (모바일 최적화) */
+.post-row-card {
+    background-color: var(--bg-secondary);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-subtle);
+    transition: background-color 0.2s;
 }
-.post-list-title:hover {
-    color: var(--accent-blue); /* 호버 시 액센트 색상 */
+.post-row-card:hover {
+    background-color: #383838; /* Subtle hover effect */
+}
+.post-title-text {
+    font-size: 1.1em; 
+    font-weight: 600; 
+    color: var(--text-light); 
+    margin-bottom: 5px;
+    display: block; /* 제목이 한 줄을 차지하도록 */
 }
 
 /* 좋아요 수 표시 스타일 */
 .metric-heart {
-    font-size: 1em;
+    font-size: 0.9em;
     font-weight: 600;
-    color: var(--red-like);
+    color: var(--metric-color); /* Subtle Gray */
     margin-right: 15px;
 }
 /* 조회수 표시 스타일 */
 .metric-view {
-    font-size: 1em;
+    font-size: 0.9em;
     font-weight: 600;
-    color: var(--green-view);
+    color: var(--metric-color); /* Subtle Gray */
 }
 
 /* 추천 게시글 카드 스타일 */
@@ -85,16 +90,20 @@ STYLING = """
 }
 .recommend-card:hover {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-    border-color: var(--accent-blue);
+    border-color: var(--accent);
 }
 
-/* Streamlit Button Primary Color Override (Use Primary type) */
-/* Streamlit의 기본 primary color를 CSS 변수와 맞추어 통일감을 줍니다. */
+/* Streamlit Button Primary Color Override (터치 영역 확보) */
 .stButton>button[kind="primary"] {
-    background-color: var(--accent-blue) !important;
-    border-color: var(--accent-blue) !important;
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
     color: var(--bg-dark) !important;
     font-weight: 600;
+    min-height: 44px; /* 최소 터치 타겟 크기 */
+}
+/* Secondary 버튼도 터치 타겟 크기 확보 */
+.stButton>button[kind="secondary"] {
+    min-height: 44px;
 }
 </style>
 """
@@ -286,11 +295,12 @@ def go_to_detail(post_id):
     """게시글 상세 페이지로 이동하며 ID 저장."""
     st.session_state.page = "detail"
     st.session_state.selected_post_id = post_id
-    st.rerun()
+    # st.rerun() 대신 Streamlit의 기본 동작을 따르도록 하여 reruns 최소화
 
 # ✅ 로그인 페이지
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # 모바일에서 중앙에 내용이 잘 보이도록 컬럼 사용 유지
+    col1, col2, col3 = st.columns([0.1, 1, 0.1]) 
     with col2:
         st.markdown('<p class="main-title">대원 커뮤니티</p>', unsafe_allow_html=True)
         st.markdown('<p class="sub-header">로그인</p>', unsafe_allow_html=True)
@@ -302,7 +312,6 @@ def show_login_page():
                 success, msg = login(username, password)
                 if success:
                     st.success(msg)
-                    st.balloons()
                     st.session_state.page = "home"
                     st.rerun()
                 else:
@@ -332,7 +341,7 @@ def show_signup_page():
         except sqlite3.IntegrityError:
             return False, "이미 존재하는 아이디 또는 이메일입니다."
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([0.1, 1, 0.1])
     with col2:
         st.markdown('<p class="main-title">대원 커뮤니티</p>', unsafe_allow_html=True)
         st.markdown('<p class="sub-header">회원가입</p>', unsafe_allow_html=True)
@@ -359,13 +368,12 @@ def show_signup_page():
             st.rerun()
     conn.close()
 
-# ✅ 게시판 목록 페이지
+# ✅ 게시판 목록 페이지 (모바일 최적화)
 def show_home_page():
     st.markdown('<p class="sub-header">자유 게시판</p>', unsafe_allow_html=True)
 
     col_write, col_spacer = st.columns([1, 6])
     with col_write:
-        # 이모지 최소화, Primary 버튼 사용
         if st.button("새 글 작성", use_container_width=True, type="primary"):
             st.session_state.page = "write"
             st.rerun()
@@ -376,45 +384,46 @@ def show_home_page():
         st.info("아직 게시글이 없습니다.")
         return
 
-    # 게시글 목록 헤더 (간결하게)
-    header_col1, header_col2, header_col3, header_col4, header_col5 = st.columns([4, 1.5, 1, 0.5, 0.5])
-    header_col1.markdown('**제목**', unsafe_allow_html=True)
-    header_col2.markdown('**작성자**', unsafe_allow_html=True)
-    header_col3.markdown('**날짜**', unsafe_allow_html=True)
-    header_col4.markdown('**❤️**', unsafe_allow_html=True)
-    header_col5.markdown('**👁️**', unsafe_allow_html=True) # 이모지는 최소화, 👁️로 변경
-    st.markdown('<div style="margin-bottom: -10px;"></div>', unsafe_allow_html=True) # 간격 조절
-    st.markdown("---")
-    
-    # 게시글 목록
+    # 모바일 최적화: 5열 테이블 대신, 전체 너비 카드 형태로 표시
     for post in posts:
         post_id, title, author, created_at, likes, views = post
         
-        col1, col2, col3, col4, col5 = st.columns([4, 1.5, 1, 0.5, 0.5])
+        # 커스텀 CSS를 이용하여 카드 형태로 디자인하고, 클릭 액션을 처리할 숨겨진 버튼을 포함
+        st.markdown(f'<div class="post-row-card" onclick="document.getElementById(\'btn_post_{post_id}\').click()" style="cursor: pointer;">', unsafe_allow_html=True)
         
-        with col1:
-            # 커스텀 CSS 적용된 제목 버튼
-            if st.button(title, key=f"post_title_{post_id}", use_container_width=True, help="클릭하여 상세 보기"):
-                go_to_detail(post_id)
-            
-            # 버튼의 기본 스타일을 지우고 깔끔한 제목 링크처럼 보이도록 함
-            st.markdown(f"""
-            <style>
-                div[data-testid="stButton"] button[key="post_title_{post_id}"] {{
-                    background: none !important;
-                    border: none !important;
-                    text-align: left;
-                    padding-left: 0;
-                    padding-right: 0;
-                }}
-            </style>
-            """, unsafe_allow_html=True)
+        # 제목
+        st.markdown(f'<span class="post-title-text">{title}</span>', unsafe_allow_html=True)
+        
+        # 메타데이터 (작성자 | 날짜)
+        st.markdown(f'<div style="font-size: 0.9em; color: var(--accent); margin-bottom: 5px;">', unsafe_allow_html=True)
+        st.markdown(f'<span>{author}</span> | <span style="margin-left: 5px;">{created_at[:10]}</span>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 메트릭 (좋아요 | 조회수)
+        st.markdown(f'<div style="font-size: 0.8em;">', unsafe_allow_html=True)
+        st.markdown(f'<span class="metric-heart">❤️ {likes}</span> <span class="metric-view">👁️ {views}</span>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        col2.write(author)
-        col3.write(created_at[:10])
-        col4.markdown(f'<div style="text-align: center;">{likes}</div>', unsafe_allow_html=True)
-        col5.markdown(f'<div style="text-align: center;">{views}</div>', unsafe_allow_html=True)
-        st.markdown("---")
+        # 실제 Streamlit 동작을 트리거하기 위한 숨겨진 버튼
+        if st.button(" ", key=f"btn_post_{post_id}"):
+             go_to_detail(post_id)
+
+        # 숨겨진 버튼의 스타일을 조정하여 시각적으로 보이지 않게 처리 (CSS에 추가)
+        st.markdown(f"""
+        <style>
+            div[data-testid="stButton"] button[key="btn_post_{post_id}"] {{
+                visibility: hidden;
+                height: 0;
+                width: 0;
+                padding: 0;
+                margin: 0;
+                border: none;
+                line-height: 0;
+            }}
+        </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ✅ 게시글 상세 페이지
@@ -424,7 +433,7 @@ def show_post_detail(post_id):
     post = get_post_by_id(post_id)
     if not post:
         st.error("존재하지 않는 게시글입니다.")
-        if st.button("목록으로 돌아가기"):
+        if st.button("목록으로 돌아가기", type="primary"):
             st.session_state.page = "home"
             st.rerun()
         return
@@ -444,14 +453,14 @@ def show_post_detail(post_id):
     st.markdown(f'<span class="metric-heart">❤️ 좋아요 {likes}</span> <span class="metric-view">👁️ 조회수 {views}</span>', unsafe_allow_html=True)
     st.markdown("---")
 
-    # 액션 버튼 영역
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
+    # 액션 버튼 영역 (모바일에서 버튼이 한 줄에 꽉 차도록 3개만 나열)
+    col1, col2, col3 = st.columns(3)
     
     # 좋아요 버튼
     with col1:
         is_liked = has_user_liked(post_id, username)
         # 이모지 최소화: 🤍 -> 좋아요, ❤️ -> 좋아요 취소
-        like_label = "❤️ 좋아요 취소" if is_liked else "🤍 좋아요"
+        like_label = "❤️ 취소" if is_liked else "🤍 좋아요"
         if st.button(like_label, key=f"detail_like_{post_id}", use_container_width=True, type="secondary"):
             like_post(post_id, username)
             st.rerun()
@@ -466,6 +475,9 @@ def show_post_detail(post_id):
                     st.rerun()
                 else:
                     st.error("삭제 권한이 없습니다.")
+        else:
+            # 삭제 권한이 없으면 빈 공간을 만들어 레이아웃 유지
+            st.markdown('<div style="height: 44px;"></div>', unsafe_allow_html=True)
 
     # 목록으로 버튼
     with col3:
@@ -482,9 +494,13 @@ def show_post_detail(post_id):
     if comments:
         for c in comments:
             c_author, c_content, c_created = c
-            st.markdown(f"**{c_author}** <small style='color: #94A3B8;'>({c_created})</small>", unsafe_allow_html=True)
-            st.markdown(f'<div style="margin-left: 15px; margin-bottom: 10px;">{c_content}</div>', unsafe_allow_html=True)
-            st.markdown('<hr style="margin: 5px 0; border-top: 1px solid #334155;">', unsafe_allow_html=True)
+            # 모바일 가독성을 위해 댓글 영역 배경을 다르게 설정
+            st.markdown(f"""
+            <div style="background-color: #242424; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
+            <p style="margin: 0;"><b>{c_author}</b> <small style='color: #777777;'>({c_created})</small></p>
+            <p style="margin: 5px 0 0 0; word-wrap: break-word;">{c_content}</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.info("아직 댓글이 없습니다. 첫 댓글을 남겨보세요.")
 
@@ -492,9 +508,10 @@ def show_post_detail(post_id):
     with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
         comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
         
-        colA, colB = st.columns([3, 1])
+        # 버튼을 아래로 분리하여 모바일에서 터치하기 쉽게
+        colA, colB = st.columns([1, 1])
         with colA:
-            anonymous = st.checkbox("익명으로 작성")
+            anonymous = st.checkbox("익명으로 작성", help="익명으로 댓글을 작성합니다.")
         with colB:
             if st.form_submit_button("등록", use_container_width=True, type="primary"):
                 if comment_text.strip():
@@ -511,13 +528,16 @@ def show_post_detail(post_id):
     recommended_posts = get_recommended_posts(post_id, limit=3)
     
     if recommended_posts:
-        cols = st.columns(len(recommended_posts))
+        # 모바일에서는 1열 또는 2열로 표시하는 것이 적합
+        cols = st.columns(min(len(recommended_posts), 2)) 
         for i, (rec_id, rec_title) in enumerate(recommended_posts):
-            with cols[i]:
+            with cols[i % min(len(recommended_posts), 2)]:
                 st.markdown(f'<div class="recommend-card">', unsafe_allow_html=True)
                 st.markdown(f"**{rec_title}**", unsafe_allow_html=True)
-                if st.button("보기", key=f"rec_btn_{rec_id}", use_container_width=True):
-                    go_to_detail(rec_id)
+                # '보기' 버튼도 터치 타겟 크기를 확보
+                if st.button("보기", key=f"rec_btn_{rec_id}", use_container_width=True, type="secondary"):
+                    st.session_state.selected_post_id = rec_id
+                    st.rerun()
                 st.markdown(f'</div>', unsafe_allow_html=True)
     else:
         st.info("다른 게시글이 없습니다.")
@@ -532,9 +552,10 @@ def show_write_page():
         content = st.text_area("내용", height=400)
         anonymous = st.checkbox("익명으로 작성")
         
+        st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("등록", type="primary"):
+            if st.form_submit_button("등록", type="primary", use_container_width=True):
                 if title.strip() and content.strip():
                     create_post(title, content, anonymous)
                     st.success("게시글이 성공적으로 작성되었습니다!")
@@ -543,7 +564,7 @@ def show_write_page():
                 else:
                     st.error("제목과 내용을 모두 입력해주세요.")
         with col2:
-            if st.form_submit_button("취소"):
+            if st.form_submit_button("취소", use_container_width=True):
                 st.session_state.page = "home"
                 st.rerun()
 
@@ -559,10 +580,15 @@ def show_profile_page():
     if user:
         username, email, school, created = user
         st.subheader("계정 정보")
-        st.info(f"**아이디:** {username}")
-        st.info(f"**이메일:** {email}")
-        st.info(f"**소속 학교:** {school or '정보 없음'}")
-        st.info(f"**가입일:** {created}")
+        # 깔끔하게 정보 표시
+        st.markdown(f"""
+        <div style="background-color: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            <p style="margin: 0 0 5px 0;"><b>아이디:</b> {username}</p>
+            <p style="margin: 5px 0;"><b>이메일:</b> {email}</p>
+            <p style="margin: 5px 0;"><b>소속 학교:</b> {school or '정보 없음'}</p>
+            <p style="margin: 5px 0 0 0;"><b>가입일:</b> {created}</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
 
@@ -579,26 +605,26 @@ def main():
 
     # 사이드바 (내비게이션)
     with st.sidebar:
-        st.markdown('<p style="font-size: 1.8em; font-weight: 700; color: var(--accent-blue);">대원 커뮤니티</p>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size: 1.8em; font-weight: 700; color: var(--accent);">대원 커뮤니티</p>', unsafe_allow_html=True)
         st.markdown("---")
 
         if st.session_state.logged_in:
-            st.markdown(f"환영합니다, **{st.session_state.username}**님.")
+            st.markdown(f"환영합니다, **{st.session_state.username}**님.", unsafe_allow_html=True)
             st.markdown("---")
             
-            # 메뉴 버튼
-            if st.button("홈 (게시판)", use_container_width=True):
+            # 메뉴 버튼 (모바일 환경에서 클릭하기 쉽도록)
+            if st.button("홈 (게시판)", use_container_width=True, key="nav_home"):
                 st.session_state.page = "home"
                 st.rerun()
-            if st.button("새 글 작성", use_container_width=True):
+            if st.button("새 글 작성", use_container_width=True, key="nav_write"):
                 st.session_state.page = "write"
                 st.rerun()
-            if st.button("내 정보", use_container_width=True):
+            if st.button("내 정보", use_container_width=True, key="nav_profile"):
                 st.session_state.page = "profile"
                 st.rerun()
                 
             st.markdown("---")
-            if st.button("로그아웃", use_container_width=True, type="secondary"):
+            if st.button("로그아웃", use_container_width=True, type="secondary", key="nav_logout"):
                 st.session_state.logged_in = False
                 st.session_state.username = None
                 st.session_state.page = "login"
