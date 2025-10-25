@@ -201,7 +201,8 @@ def create_post(title, content, is_anonymous=False):
 def get_all_posts():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM posts ORDER BY id DESC")
+    # 📌 수정: SELECT * 대신 7개의 컬럼만 명시적으로 선택하여 언패킹 에러를 방지합니다.
+    c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts ORDER BY id DESC")
     posts = c.fetchall()
     conn.close()
     return posts
@@ -320,6 +321,7 @@ def show_home_page():
         return
 
     for post in posts:
+        # post가 이제 7개 요소만 포함하도록 보장됩니다.
         post_id, title, content, author, real_author, created_at, likes = post
         
         # 현재 사용자가 좋아요를 눌렀는지 확인
