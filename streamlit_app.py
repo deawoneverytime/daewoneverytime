@@ -7,7 +7,7 @@ from datetime import datetime
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
-# ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS (게시글 간격 및 행 클릭 가능 스타일 추가)
+# ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS (게시글 간격 및 클린 목록 스타일 적용)
 STYLING = """
 <style>
 /* 메인 제목 스타일 */
@@ -30,33 +30,42 @@ STYLING = """
 
 /* 네이트판 스타일: 게시글 간격을 좁게 만드는 얇은 구분선 */
 .thin-divider {
-    margin: 5px 0 !important; /* 상하 마진을 좁게 설정 */
+    margin: 0px 0 !important; /* 마진 0 */
     border-top: 1px solid #eee;
     opacity: 0.8;
 }
 
-/* 게시글 목록의 전체 행 버튼 스타일 (전체 클릭 영역 확보) */
-/* 모든 st.button에 적용되며, 특히 홈 화면의 목록에 사용됩니다. */
-div.stButton > button {
-    /* 기본 배경/테두리 제거 */
+/* 게시글 목록의 버튼(제목) 스타일: 링크처럼 보이게 하면서 세로 간격 최소화 */
+div[data-testid^="stColumn"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    /* 텍스트 스타일 */
-    color: #333333 !important; /* 기본 텍스트 색상 */
-    font-weight: 500 !important;
+    color: #333333 !important;
+    font-weight: 600 !important;
     text-align: left !important;
-    padding: 10px 5px !important; /* 클릭 영역의 수직 패딩 */
+    padding: 2px 0 !important; /* <<-- 수직 패딩 최소화 */
     margin: 0 !important;
     cursor: pointer !important;
     width: 100%;
+    white-space: nowrap; 
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* 호버 시 스타일 변경 (전체 행이 클릭 가능하다는 시각적 피드백) */
-div.stButton > button:hover {
-    background-color: #f7f7ff !important; /* 배경을 연한 파란색으로 변경 */
-    text-decoration: none !important;
-    box-shadow: none !important;
+/* 제목 버튼 호버 시 스타일 */
+div[data-testid^="stColumn"] div.stButton > button:hover {
+    color: #1E90FF !important; 
+    text-decoration: underline !important;
+    background-color: transparent !important;
+}
+
+/* st.columns로 생성된 수평 블록의 세로 간격을 줄입니다. */
+div[data-testid^="stHorizontalBlock"] {
+    /* 수평 블록 내부의 위아래 공간을 줄여 게시글 행 간격을 좁힙니다. */
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
 }
 
 /* 좋아요 수 표시 스타일 (상세 페이지) */
@@ -131,7 +140,8 @@ def get_post_by_id(post_id):
     c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
-    return post
+    # 컬럼이 7개이므로 7개를 반환합니다: (id, title, content, author, real_author, created_at, likes)
+    return post 
 
 def login(username, password):
     """로그인 처리."""
@@ -191,6 +201,7 @@ def get_all_posts():
     """모든 게시글을 최신순으로 가져오기."""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
+    # id, title, author, created_at, likes 순서로 5개 컬럼을 가져옵니다.
     c.execute("SELECT id, title, author, created_at, likes FROM posts ORDER BY id DESC")
     posts = c.fetchall()
     conn.close()
@@ -313,7 +324,7 @@ def show_signup_page():
     conn.close()
 
 
-# ✅ 게시판 목록 페이지 (수정: 전체 행 클릭 가능 및 간격 좁게)
+# ✅ 게시판 목록 페이지 (수정: 클린 목록 표시 및 간격 좁게)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
@@ -332,33 +343,33 @@ def show_home_page():
     # 게시글 목록 헤더 (항목 정렬을 위해 st.columns 사용)
     header_col1, header_col2, header_col3, header_col4 = st.columns([4, 1.5, 1, 0.5])
     header_col1.markdown('**제목**', unsafe_allow_html=True)
-    header_col2.markdown('**작성자**', unsafe_allow_html=True)
-    header_col3.markdown('**작성일**', unsafe_allow_html=True)
-    header_col4.markdown('**❤️**', unsafe_allow_html=True)
+    header_col2.markdown('<div style="text-align: center;">**작성자**</div>', unsafe_allow_html=True)
+    header_col3.markdown('<div style="text-align: center;">**작성일**</div>', unsafe_allow_html=True)
+    header_col4.markdown('<div style="text-align: right;">**❤️**</div>', unsafe_allow_html=True)
     
-    # 얇은 구분선 (네이트판 스타일 간격 좁힘)
+    # 얇은 구분선 (게시물 간격 시작)
     st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
     
-    # 게시글 목록 (전체 행 클릭 가능)
+    # 게시글 목록 (클린하게 표시, 간격 최소화)
     for post in posts:
         post_id, title, author, created_at, likes = post
         
-        # HTML로 전체 행의 내용을 스타일링합니다.
-        row_content = f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-            <span style="flex: 4; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 10px;">{title}</span>
-            <span style="flex: 1.5; text-align: center; color: #666; font-size: 0.9em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">{author}</span>
-            <span style="flex: 1; text-align: center; color: #666; font-size: 0.9em; white-space: nowrap;">{created_at[:10]}</span>
-            <span style="flex: 0.5; text-align: right; color: #FF4B4B; font-weight: 700; font-size: 1em;">{likes}</span>
-        </div>
-        """
+        # 1. 컬럼 정의
+        col1, col2, col3, col4 = st.columns([4, 1.5, 1, 0.5])
         
-        # 1. HTML로 스타일링된 내용을 st.button의 라벨로 사용하고 use_container_width=True로 전체 폭을 차지하게 합니다.
-        #    이로 인해 게시글 목록의 *어디를 클릭해도* 버튼이 눌리는 효과가 발생합니다.
-        if st.button(row_content, key=f"post_row_{post_id}", use_container_width=True):
-            go_to_detail(post_id)
-            
-        # 2. 얇은 구분선
+        # 2. 버튼 배치 (클릭 기능)
+        with col1:
+            # 제목을 버튼으로 사용하여 클릭 가능하게 합니다. (CSS로 링크처럼 보이도록 했습니다)
+            if st.button(title, key=f"post_title_{post_id}"):
+                go_to_detail(post_id)
+        
+        # 3. 나머지 정보 표시 (정렬 및 간격 조절을 위해 st.markdown 사용)
+        # padding: 5px 0을 사용하여 세로 간격을 버튼과 비슷하게 맞춥니다.
+        col2.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{author}</div>', unsafe_allow_html=True)
+        col3.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{created_at[:10]}</div>', unsafe_allow_html=True)
+        col4.markdown(f'<div style="text-align: right; font-weight: 700; color: #FF4B4B; padding: 5px 0;">{likes}</div>', unsafe_allow_html=True)
+
+        # 4. 구분선
         st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
 
 
@@ -372,7 +383,7 @@ def show_post_detail(post_id):
             st.rerun()
         return
 
-    # 7개의 컬럼이 정확히 매핑됩니다.
+    # 7개의 컬럼: id, title, content, author, real_author, created_at, likes
     post_id, title, content, author, real_author, created_at, likes = post
     username = st.session_state.username
 
