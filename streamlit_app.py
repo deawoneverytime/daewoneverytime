@@ -331,16 +331,14 @@ def show_home_page():
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
     post = get_post_by_id(post_id)
-# 게시글이 없거나 데이터 형식이 예상과 다를 경우 방어 코드 추가
-if not post or len(post) < 7:
-    st.error("존재하지 않는 게시글입니다.")
-    if st.button("목록으로 돌아가기"):
-        st.session_state.page = "home"
-        st.rerun()
-    return
+    if not post:
+        st.error("존재하지 않는 게시글입니다.")
+        if st.button("목록으로 돌아가기"):
+            st.session_state.page = "home"
+            st.rerun()
+        return
 
-# 안전하게 7개만 언패킹
-post_id, title, content, author, real_author, created_at, likes = post[:7]
+    post_id, title, content, author, real_author, created_at, likes = post
     username = st.session_state.username
 
     st.markdown(f'## {title}')
@@ -442,9 +440,10 @@ def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
+    c.execute("SELECT * FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
+
     if user:
         username, _, email, student_id, created = user
         st.metric(label="아이디", value=username)
