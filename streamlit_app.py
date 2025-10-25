@@ -18,9 +18,9 @@ else:
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
-# ✅ CSS 스타일링: 모던하고 깔끔한 버건디 & 무채색 계열 디자인
-# Accent Color: #8C3E59 (Deep Plum/Burgundy)
-# Text Color: #333333 (Dark Charcoal)
+# ✅ CSS 스타일링: 모던하고 깔끔한 무채색 계열 디자인
+# Accent Color: #4A4A4A (Dark Slate Gray - Monochromatic Accent)
+# Title Color: #1E1E1E (Dark Charcoal)
 STYLING = """
 <style>
 /* 배경색을 살짝 미색으로 변경 */
@@ -32,17 +32,18 @@ STYLING = """
 .main-title {
     font-size: 3.5em;
     font-weight: 900;
-    color: #8C3E59; /* 버건디 Accent */
+    color: #1E1E1E; /* 진한 먹색 */
     text-align: center;
     margin-bottom: 25px;
     letter-spacing: -1px; /* 촘촘한 느낌 */
 }
+
 /* 섹션 헤더 스타일: 모던한 좌측 라인 강조 */
 .sub-header {
     font-size: 1.8em;
     font-weight: 700;
     color: #333333;
-    border-left: 5px solid #8C3E59;
+    border-left: 5px solid #4A4A4A; /* 무채색 Accent */
     padding-left: 10px;
     padding-bottom: 5px;
     margin-top: 30px;
@@ -71,13 +72,14 @@ div[data-testid^="stColumn"] div.stButton > button {
     white-space: nowrap; 
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.2s ease;
 }
 
 /* 제목 버튼 호버 시 스타일 */
 div[data-testid^="stColumn"] div.stButton > button:hover {
-    color: #8C3E59 !important; /* 버건디 Hover */
-    text-decoration: none !important; /* 깔끔함을 위해 밑줄 제거 */
-    background-color: #F7F7F7 !important; /* 아주 연한 배경색 */
+    color: #4A4A4A !important; /* 무채색 Accent Hover */
+    text-decoration: none !important; 
+    background-color: #F0F0F0 !important; /* 아주 연한 배경색 */
 }
 
 /* st.columns로 생성된 수평 블록의 세로 간격을 줄입니다. */
@@ -88,11 +90,12 @@ div[data-testid^="stHorizontalBlock"] {
     margin-bottom: 0px !important;
 }
 
-/* 좋아요 수 표시 스타일 (상세 페이지) */
+/* 좋아요 수 표시 스타일 (상세 페이지 & 목록) */
 .metric-heart {
-    font-size: 1.2em;
+    font-size: 1.0em;
     font-weight: 700;
-    color: #CC0000; /* 심플한 짙은 빨강 */
+    color: #4A4A4A; /* 빨간색 대신 무채색 Accent 적용 */
+    padding: 5px 0; /* 목록 정렬을 위해 추가 */
 }
 
 /* 프로필 페이지 카드 스타일링 (내 정보 탭 디자인 개선) */
@@ -105,7 +108,7 @@ div[data-testid^="stHorizontalBlock"] {
 }
 .profile-label {
     font-weight: 500;
-    color: #8C3E59; /* 라벨에 Accent Color 적용 */
+    color: #4A4A4A; /* 라벨에 Accent Color 적용 */
     font-size: 1.1em;
     margin-bottom: 5px;
 }
@@ -120,12 +123,43 @@ div[data-testid^="stHorizontalBlock"] {
 
 /* Primary 버튼 스타일 (Accent Color 적용) */
 .stButton button[data-testid="baseButton-primary"] {
-    background-color: #8C3E59 !important;
-    border-color: #8C3E59 !important;
+    background-color: #4A4A4A !important;
+    border-color: #4A4A4A !important;
+    color: white !important;
 }
 .stButton button[data-testid="baseButton-primary"]:hover {
-    background-color: #6C2C40 !important; /* Darker on hover */
-    border-color: #6C2C40 !important;
+    background-color: #333333 !important; /* Darker on hover */
+    border-color: #333333 !important;
+}
+
+/* Secondary 버튼 스타일 */
+.stButton button[data-testid="baseButton-secondary"] {
+    color: #4A4A4A !important; /* 텍스트 색상을 Accent Color로 */
+    border-color: #E0E0E0 !important;
+}
+.stButton button[data-testid="baseButton-secondary"]:hover {
+    background-color: #F0F0F0 !important;
+    border-color: #D0D0D0 !important;
+}
+
+/* Streamlit 기본 Info/Success/Error 메시지 색상 조정 (배경은 못 바꾸지만 텍스트는 짙은 색으로) */
+div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] p {
+    color: #1E1E1E !important; 
+    font-weight: 600;
+}
+
+/* 사이드바 헤더 색상 */
+.sidebar-header {
+    font-size: 1.5em; 
+    font-weight: 700; 
+    color:#1E1E1E; /* 진한 먹색 */
+}
+
+/* 상세 페이지 좋아요 카운트 (빨간색 제거) */
+.post-likes-count {
+    font-size: 1.0em;
+    font-weight: 700;
+    color: #4A4A4A;
 }
 
 </style>
@@ -155,7 +189,7 @@ def init_db():
         title TEXT,
         content TEXT,
         author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,        -- 실제 작성자 (아이디, 삭제 권한 확인용)
+        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
         created_at TEXT,
         likes INTEGER DEFAULT 0
     )''')
@@ -315,9 +349,12 @@ def show_login_page():
         st.markdown('<p class="sub-header">로그인</p>', unsafe_allow_html=True)
 
         with st.form("login_form"):
+            # 텍스트 색상을 기본 무채색(검정)으로 유지
             username = st.text_input("아이디", key="login_user")
             password = st.text_input("비밀번호", type="password", key="login_pw")
-            if st.form_submit_button("로그인", use_container_width=True):
+            
+            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+            if st.form_submit_button("로그인", use_container_width=True, type="primary"):
                 success, msg = login(username, password)
                 if success:
                     st.success(msg)
@@ -328,7 +365,9 @@ def show_login_page():
                     st.error(msg)
 
         st.divider()
-        st.markdown("계정이 없으신가요? **회원가입**을 진행하세요.")
+        st.markdown('<p style="color: #4A4A4A;">계정이 없으신가요? <strong>회원가입</strong>을 진행하세요.</p>', unsafe_allow_html=True)
+        
+        # Secondary 버튼 스타일로 무채색 계열 유지
         if st.button("회원가입하기", use_container_width=True, key="go_to_signup", type="secondary"):
             st.session_state.page = "signup"
             st.rerun()
@@ -366,6 +405,7 @@ def show_signup_page():
             email = st.text_input("이메일")
             student_id = st.text_input("학번")
 
+            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
             if st.form_submit_button("회원가입 완료", use_container_width=True, type="primary"):
                 success, msg = signup(username, password, email, student_id)
                 if success:
@@ -388,6 +428,7 @@ def show_home_page():
 
     col_write, col_spacer = st.columns([1, 6])
     with col_write:
+        # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
         if st.button("✍️ 새 글 작성", use_container_width=True, type="primary"):
             st.session_state.page = "write"
             st.rerun()
@@ -403,7 +444,8 @@ def show_home_page():
     header_col1.markdown('**제목**', unsafe_allow_html=True)
     header_col2.markdown('<div style="text-align: center;">**작성자**</div>', unsafe_allow_html=True)
     header_col3.markdown('<div style="text-align: center;">**작성일**</div>', unsafe_allow_html=True)
-    header_col4.markdown('<div style="text-align: right;">**❤️**</div>', unsafe_allow_html=True)
+    # 좋아요 아이콘과 텍스트를 무채색 계열로 변경
+    header_col4.markdown('<div style="text-align: right; color: #4A4A4A;">**🖤**</div>', unsafe_allow_html=True)
     
     # 얇은 구분선 (게시물 간격 시작)
     st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
@@ -424,7 +466,8 @@ def show_home_page():
         # 3. 나머지 정보 표시 (정렬 및 간격 조절을 위해 st.markdown 사용)
         col2.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{author}</div>', unsafe_allow_html=True)
         col3.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{created_at[:10]}</div>', unsafe_allow_html=True)
-        col4.markdown(f'<div style="text-align: right; font-weight: 700; color: #CC0000; padding: 5px 0;">{likes}</div>', unsafe_allow_html=True)
+        # 좋아요 수: 무채색 Accent Color 적용
+        col4.markdown(f'<div style="text-align: right;" class="metric-heart">{likes}</div>', unsafe_allow_html=True)
 
         # 4. 구분선
         st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
@@ -445,7 +488,8 @@ def show_post_detail(post_id):
     username = st.session_state.username
 
     st.markdown(f'## {title}')
-    st.caption(f"**작성자:** {author} | **작성일:** {created_at} | **❤️ {likes}**")
+    # 좋아요 카운트 색상을 무채색 Accent Color로 변경
+    st.caption(f"**작성자:** {author} | **작성일:** {created_at} | <span class='post-likes-count'>🖤 {likes}</span>", unsafe_allow_html=True)
     st.divider()
     
     # 게시글 내용
@@ -457,14 +501,17 @@ def show_post_detail(post_id):
     # 좋아요 버튼
     with col1:
         is_liked = has_user_liked(post_id, username)
-        like_label = "❤️ 좋아요 취소" if is_liked else "🤍 좋아요"
-        if st.button(like_label, key=f"detail_like_{post_id}", use_container_width=True):
+        # 하트 아이콘 색상도 무채색으로 통일: 꽉 찬 하트 🖤, 빈 하트 🤍
+        like_label = "🖤 좋아요 취소" if is_liked else "🤍 좋아요" 
+        # Secondary 버튼 스타일로 무채색 계열 유지
+        if st.button(like_label, key=f"detail_like_{post_id}", use_container_width=True, type="secondary"):
             like_post(post_id, username)
             st.rerun()
             
     # 삭제 버튼 (작성자에게만)
     with col2:
         if real_author == username:
+            # Secondary 버튼 스타일로 무채색 계열 유지
             if st.button("🗑️ 삭제", key=f"detail_del_{post_id}", type="secondary", use_container_width=True):
                 # Custom confirmation logic would go here if not in a sandboxed environment
                 if delete_post(post_id):
@@ -476,7 +523,8 @@ def show_post_detail(post_id):
 
     # 목록으로 버튼
     with col3:
-        if st.button("🔙 목록으로", key=f"detail_back_{post_id}", use_container_width=True):
+        # Secondary 버튼 스타일로 무채색 계열 유지
+        if st.button("🔙 목록으로", key=f"detail_back_{post_id}", use_container_width=True, type="secondary"):
             st.session_state.page = "home"
             st.rerun()
 
@@ -497,7 +545,7 @@ def show_post_detail(post_id):
                     <span style="font-weight: bold; color: #555;">👤 {c_author}</span>
                     <span style="font-size: 0.8em; color: #999;"> | {c_created}</span>
                 </p>
-                <p style="margin: 5px 0 0 15px;">{c_content}</p>
+                <p style="margin: 5px 0 0 15px; color: #333;">{c_content}</p>
             </div>
             """, unsafe_allow_html=True)
     else:
@@ -510,11 +558,13 @@ def show_post_detail(post_id):
         
         colA, colB = st.columns([3, 1])
         with colA:
-            anonymous = st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}")
+            st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}", 
+                        help="익명으로 작성하면 작성자는 '익명'으로 표시됩니다.")
         with colB:
+            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
             if st.form_submit_button("등록", use_container_width=True, type="primary"):
                 if comment_text.strip():
-                    add_comment(post_id, comment_text, anonymous)
+                    add_comment(post_id, comment_text, st.session_state[f"anon_comment_{post_id}"])
                     st.success("댓글이 등록되었습니다.")
                     st.rerun()
                 else:
@@ -532,6 +582,7 @@ def show_write_page():
         
         col1, col2 = st.columns(2)
         with col1:
+            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
             if st.form_submit_button("등록", type="primary", use_container_width=True):
                 if title.strip() and content.strip():
                     create_post(title, content, anonymous)
@@ -541,7 +592,8 @@ def show_write_page():
                 else:
                     st.error("제목과 내용을 모두 입력해주세요.")
         with col2:
-            if st.form_submit_button("취소", use_container_width=True):
+            # Secondary 버튼 스타일로 무채색 계열 유지
+            if st.form_submit_button("취소", use_container_width=True, type="secondary"):
                 st.session_state.page = "home"
                 st.rerun()
 
@@ -560,7 +612,7 @@ def show_profile_page():
         
         # 새로운 카드 디자인 적용
         st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 style="margin-top:0; color:#333;">{username}님의 프로필</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 style="margin-top:0; color:#1E1E1E;">{username}님의 프로필</h3>', unsafe_allow_html=True)
         st.markdown('<hr style="border-top: 2px solid #eee;">', unsafe_allow_html=True)
         
         # 2x2 그리드 레이아웃으로 정보 배치
@@ -601,24 +653,27 @@ def main():
 
     # 사이드바 (내비게이션)
     with st.sidebar:
-        st.markdown('<p style="font-size: 1.5em; font-weight: 700; color:#8C3E59;">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
+        # 사이드바 헤더 색상을 진한 먹색 (#1E1E1E)으로 변경
+        st.markdown('<p class="sidebar-header">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
         st.divider()
 
         if st.session_state.logged_in:
+            # 성공 메시지의 텍스트 색상은 CSS에서 조정했지만, 기본적으로 st.success를 사용
             st.success(f"**{st.session_state.username}**님 환영합니다!")
             
-            # 메뉴 버튼
-            if st.button("🏠 홈 (게시판)", use_container_width=True):
+            # 메뉴 버튼 (Secondary 버튼 스타일로 무채색 계열 유지)
+            if st.button("🏠 홈 (게시판)", use_container_width=True, type="secondary"):
                 st.session_state.page = "home"
                 st.rerun()
-            if st.button("✍️ 글쓰기", use_container_width=True):
+            if st.button("✍️ 글쓰기", use_container_width=True, type="secondary"):
                 st.session_state.page = "write"
                 st.rerun()
-            if st.button("👤 내 정보", use_container_width=True):
+            if st.button("👤 내 정보", use_container_width=True, type="secondary"):
                 st.session_state.page = "profile"
                 st.rerun()
                 
             st.divider()
+            # 로그아웃 버튼 (Secondary 버튼 스타일로 무채색 계열 유지)
             if st.button("🚪 로그아웃", use_container_width=True, type="secondary"):
                 st.session_state.logged_in = False
                 st.session_state.username = None
@@ -627,7 +682,8 @@ def main():
                 st.rerun()
         else:
             # 비로그인 상태일 때: 로그인/회원가입 페이지 외에는 접근할 수 없음
-            st.info("로그인이 필요합니다.")
+            # 텍스트 색상을 #4A4A4A로 설정
+            st.markdown('<p style="color: #4A4A4A; font-weight: 600;">로그인이 필요합니다.</p>', unsafe_allow_html=True)
             
     # 페이지 라우팅
     if st.session_state.page == "login":
