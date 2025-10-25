@@ -1,41 +1,62 @@
-import streamlit as st
 import sqlite3
+import streamlit as st
+import os
 import hashlib
 import re
 from datetime import datetime
 
+# Streamlit 앱 실행 환경에 맞게 현재 파일의 디렉토리를 작업 디렉토리로 설정
+# data.db 파일 경로 문제 방지
+if 'STREAMLIT_SERVER_NAME' in os.environ:
+    # Streamlit Cloud 환경에서는 os.chdir을 사용하지 않습니다.
+    pass
+else:
+    # 로컬 환경에서는 안전하게 경로를 설정합니다.
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
-# ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS (게시글 간격 및 클린 목록 스타일 적용)
+# ✅ CSS 스타일링: 모던하고 깔끔한 버건디 & 무채색 계열 디자인
+# Accent Color: #8C3E59 (Deep Plum/Burgundy)
+# Text Color: #333333 (Dark Charcoal)
 STYLING = """
 <style>
+/* 배경색을 살짝 미색으로 변경 */
+.stApp {
+    background-color: #F9F9F9; 
+}
+
 /* 메인 제목 스타일 */
 .main-title {
-    font-size: 3em;
-    font-weight: 800;
-    color: #1E90FF; /* 대원 Blue Accent */
+    font-size: 3.5em;
+    font-weight: 900;
+    color: #8C3E59; /* 버건디 Accent */
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
+    letter-spacing: -1px; /* 촘촘한 느낌 */
 }
-/* 섹션 헤더 스타일 */
+/* 섹션 헤더 스타일: 모던한 좌측 라인 강조 */
 .sub-header {
-    font-size: 1.5em;
-    font-weight: 600;
+    font-size: 1.8em;
+    font-weight: 700;
     color: #333333;
-    border-bottom: 2px solid #f0f2f6;
+    border-left: 5px solid #8C3E59;
+    padding-left: 10px;
     padding-bottom: 5px;
-    margin-top: 15px;
+    margin-top: 30px;
+    margin-bottom: 15px;
 }
 
 /* 네이트판 스타일: 게시글 간격을 좁게 만드는 얇은 구분선 */
 .thin-divider {
-    margin: 0px 0 !important; /* 마진 0 */
-    border-top: 1px solid #eee;
-    opacity: 0.8;
+    margin: 0 !important;
+    border-top: 1px solid #EDEDED; /* 밝은 회색 선 */
+    opacity: 1;
 }
 
-/* 게시글 목록의 버튼(제목) 스타일: 링크처럼 보이게 하면서 세로 간격 최소화 */
+/* 게시글 목록의 버튼(제목) 스타일: 깔끔하고 명료하게 */
 div[data-testid^="stColumn"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -43,7 +64,7 @@ div[data-testid^="stColumn"] div.stButton > button {
     color: #333333 !important;
     font-weight: 600 !important;
     text-align: left !important;
-    padding: 2px 0 !important; /* <<-- 수직 패딩 최소화 */
+    padding: 5px 0 !important; /* 버튼 세로 간격 조정 */
     margin: 0 !important;
     cursor: pointer !important;
     width: 100%;
@@ -54,14 +75,13 @@ div[data-testid^="stColumn"] div.stButton > button {
 
 /* 제목 버튼 호버 시 스타일 */
 div[data-testid^="stColumn"] div.stButton > button:hover {
-    color: #1E90FF !important; 
-    text-decoration: underline !important;
-    background-color: transparent !important;
+    color: #8C3E59 !important; /* 버건디 Hover */
+    text-decoration: none !important; /* 깔끔함을 위해 밑줄 제거 */
+    background-color: #F7F7F7 !important; /* 아주 연한 배경색 */
 }
 
 /* st.columns로 생성된 수평 블록의 세로 간격을 줄입니다. */
 div[data-testid^="stHorizontalBlock"] {
-    /* 수평 블록 내부의 위아래 공간을 줄여 게시글 행 간격을 좁힙니다. */
     padding-top: 2px !important;
     padding-bottom: 2px !important;
     margin-top: 0px !important;
@@ -72,8 +92,42 @@ div[data-testid^="stHorizontalBlock"] {
 .metric-heart {
     font-size: 1.2em;
     font-weight: 700;
-    color: #FF4B4B; /* Red for Likes */
+    color: #CC0000; /* 심플한 짙은 빨강 */
 }
+
+/* 프로필 페이지 카드 스타일링 (내 정보 탭 디자인 개선) */
+.profile-card {
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* 부드러운 그림자 */
+    background-color: #FFFFFF;
+    margin-bottom: 20px;
+}
+.profile-label {
+    font-weight: 500;
+    color: #8C3E59; /* 라벨에 Accent Color 적용 */
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+.profile-value {
+    font-weight: 700;
+    color: #333333;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Primary 버튼 스타일 (Accent Color 적용) */
+.stButton button[data-testid="baseButton-primary"] {
+    background-color: #8C3E59 !important;
+    border-color: #8C3E59 !important;
+}
+.stButton button[data-testid="baseButton-primary"]:hover {
+    background-color: #6C2C40 !important; /* Darker on hover */
+    border-color: #6C2C40 !important;
+}
+
 </style>
 """
 st.markdown(STYLING, unsafe_allow_html=True)
@@ -101,7 +155,7 @@ def init_db():
         title TEXT,
         content TEXT,
         author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
+        real_author TEXT,        -- 실제 작성자 (아이디, 삭제 권한 확인용)
         created_at TEXT,
         likes INTEGER DEFAULT 0
     )''')
@@ -275,7 +329,7 @@ def show_login_page():
 
         st.divider()
         st.markdown("계정이 없으신가요? **회원가입**을 진행하세요.")
-        if st.button("회원가입하기", use_container_width=True, key="go_to_signup"):
+        if st.button("회원가입하기", use_container_width=True, key="go_to_signup", type="secondary"):
             st.session_state.page = "signup"
             st.rerun()
 
@@ -285,6 +339,10 @@ def show_signup_page():
     c = conn.cursor()
 
     def signup(username, password, email, student_id):
+        # 아이디, 학번은 빈 문자열이 아니어야 함
+        if not username.strip() or not student_id.strip():
+            return False, "아이디와 학번은 필수 입력 사항입니다."
+        
         if not re.match(EMAIL_REGEX, email) or not re.match(PASSWORD_REGEX, password):
             return False, "입력 형식을 확인하세요. 비밀번호는 8자 이상, 대/소문자/숫자 포함해야 합니다."
         try:
@@ -308,7 +366,7 @@ def show_signup_page():
             email = st.text_input("이메일")
             student_id = st.text_input("학번")
 
-            if st.form_submit_button("회원가입 완료", use_container_width=True):
+            if st.form_submit_button("회원가입 완료", use_container_width=True, type="primary"):
                 success, msg = signup(username, password, email, student_id)
                 if success:
                     st.success(msg)
@@ -318,22 +376,22 @@ def show_signup_page():
                     st.error(msg)
 
         st.divider()
-        if st.button("로그인 페이지로 돌아가기", use_container_width=True):
+        if st.button("로그인 페이지로 돌아가기", use_container_width=True, type="secondary"):
             st.session_state.page = "login"
             st.rerun()
     conn.close()
 
 
-# ✅ 게시판 목록 페이지 (수정: 클린 목록 표시 및 간격 좁게)
+# ✅ 게시판 목록 페이지 (클린 목록 표시 및 간격 좁게)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
     col_write, col_spacer = st.columns([1, 6])
     with col_write:
-        if st.button("✍️ 글쓰기", use_container_width=True, type="primary"):
+        if st.button("✍️ 새 글 작성", use_container_width=True, type="primary"):
             st.session_state.page = "write"
             st.rerun()
-    st.divider()
+    st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True) # 공간 확보
 
     posts = get_all_posts()
     if not posts:
@@ -364,10 +422,9 @@ def show_home_page():
                 go_to_detail(post_id)
         
         # 3. 나머지 정보 표시 (정렬 및 간격 조절을 위해 st.markdown 사용)
-        # padding: 5px 0을 사용하여 세로 간격을 버튼과 비슷하게 맞춥니다.
         col2.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{author}</div>', unsafe_allow_html=True)
         col3.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{created_at[:10]}</div>', unsafe_allow_html=True)
-        col4.markdown(f'<div style="text-align: right; font-weight: 700; color: #FF4B4B; padding: 5px 0;">{likes}</div>', unsafe_allow_html=True)
+        col4.markdown(f'<div style="text-align: right; font-weight: 700; color: #CC0000; padding: 5px 0;">{likes}</div>', unsafe_allow_html=True)
 
         # 4. 구분선
         st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
@@ -409,6 +466,7 @@ def show_post_detail(post_id):
     with col2:
         if real_author == username:
             if st.button("🗑️ 삭제", key=f"detail_del_{post_id}", type="secondary", use_container_width=True):
+                # Custom confirmation logic would go here if not in a sandboxed environment
                 if delete_post(post_id):
                     st.success("게시글이 삭제되었습니다.")
                     st.session_state.page = "home"
@@ -445,16 +503,16 @@ def show_post_detail(post_id):
     else:
         st.info("아직 댓글이 없습니다.")
 
-    st.markdown('#### 댓글 작성')
+    st.markdown('<h4 style="margin-top: 20px; color: #555;">댓글 작성</h4>', unsafe_allow_html=True)
     # 댓글 작성 폼
     with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
         comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
         
         colA, colB = st.columns([3, 1])
         with colA:
-            anonymous = st.checkbox("익명으로 작성 (댓글 작성자: 익명)", key=f"anon_comment_{post_id}")
+            anonymous = st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}")
         with colB:
-            if st.form_submit_button("댓글 등록", use_container_width=True, type="primary"):
+            if st.form_submit_button("등록", use_container_width=True, type="primary"):
                 if comment_text.strip():
                     add_comment(post_id, comment_text, anonymous)
                     st.success("댓글이 등록되었습니다.")
@@ -474,7 +532,7 @@ def show_write_page():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("등록", type="primary"):
+            if st.form_submit_button("등록", type="primary", use_container_width=True):
                 if title.strip() and content.strip():
                     create_post(title, content, anonymous)
                     st.success("게시글이 성공적으로 작성되었습니다!")
@@ -483,11 +541,11 @@ def show_write_page():
                 else:
                     st.error("제목과 내용을 모두 입력해주세요.")
         with col2:
-            if st.form_submit_button("취소"):
+            if st.form_submit_button("취소", use_container_width=True):
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지
+# ✅ 프로필 페이지 (디자인 개선)
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
@@ -498,12 +556,32 @@ def show_profile_page():
     conn.close()
 
     if user:
-        # DB에서 가져온 5개 컬럼 중 password(_)를 제외하고 4개만 사용
         username, _, email, student_id, created = user
-        st.metric(label="아이디", value=username)
-        st.metric(label="이메일", value=email)
-        st.metric(label="학번", value=student_id)
-        st.metric(label="가입일", value=created)
+        
+        # 새로운 카드 디자인 적용
+        st.markdown('<div class="profile-card">', unsafe_allow_html=True)
+        st.markdown(f'<h3 style="margin-top:0; color:#333;">{username}님의 프로필</h3>', unsafe_allow_html=True)
+        st.markdown('<hr style="border-top: 2px solid #eee;">', unsafe_allow_html=True)
+        
+        # 2x2 그리드 레이아웃으로 정보 배치
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f'<div class="profile-label">아이디</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="profile-value">{username}</div>', unsafe_allow_html=True)
+            
+            st.markdown(f'<div class="profile-label">학번</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="profile-value">{student_id}</div>', unsafe_allow_html=True)
+            
+        with col2:
+            st.markdown(f'<div class="profile-label">이메일</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="profile-value">{email}</div>', unsafe_allow_html=True)
+
+            st.markdown(f'<div class="profile-label">가입일</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="profile-value">{created}</div>', unsafe_allow_html=True)
+            
+        st.markdown('</div>', unsafe_allow_html=True) # End profile-card
+        
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
         if st.button("홈으로 돌아가기", key="profile_error_back"):
@@ -523,7 +601,7 @@ def main():
 
     # 사이드바 (내비게이션)
     with st.sidebar:
-        st.markdown('<p style="font-size: 1.5em; font-weight: 700;">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size: 1.5em; font-weight: 700; color:#8C3E59;">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
         st.divider()
 
         if st.session_state.logged_in:
