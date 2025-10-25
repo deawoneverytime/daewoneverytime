@@ -69,21 +69,22 @@ st.markdown(STYLING, unsafe_allow_html=True)
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
 
-# ✅ DB 초기화: 필요한 테이블 생성 (views 컬럼 추가, student_id -> school 변경)
+# ✅ DB 초기화: 필요한 테이블 생성 및 스키마 마이그레이션 처리
 def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # 사용자 테이블 (student_id -> school로 컬럼명 변경)
+    # 1. 테이블 생성 (IF NOT EXISTS)
+    # 사용자 테이블 (student_id -> school로 컬럼명 변경된 상태)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
         email TEXT UNIQUE,
-        school TEXT,            -- 학교 선택 항목으로 변경
+        school TEXT,            -- 학교 선택 항목
         created_at TEXT
     )''')
 
-    # 게시글 테이블 (views 컬럼 추가)
+    # 게시글 테이블 (views 컬럼 추가된 상태)
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -92,7 +93,7 @@ def init_db():
         real_author TEXT,
         created_at TEXT,
         likes INTEGER DEFAULT 0,
-        views INTEGER DEFAULT 0     -- 조회수 컬럼 추가
+        views INTEGER DEFAULT 0     -- 조회수 컬럼
     )''')
 
     # 댓글 테이블
@@ -114,7 +115,27 @@ def init_db():
         PRIMARY KEY (username, post_id),
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
+    
+    # 2. 📌 스키마 마이그레이션 (기존 DB 파일에 새 컬럼 추가)
+    
+    # 'posts' 테이블에 'views' 컬럼이 없는 경우 추가
+    try:
+        # 임시 쿼리로 컬럼 존재 여부 확인
+        c.execute("SELECT views FROM posts LIMIT 1")
+    except sqlite3.OperationalError:
+        # 컬럼이 없으면 추가
+        c.execute("ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0")
+        st.info("데이터베이스 스키마를 업데이트했습니다 (posts 테이블에 views 컬럼 추가).")
 
+    # 'users' 테이블에 'school' 컬럼이 없는 경우 추가 (이전 버전 대비)
+    try:
+        c.execute("SELECT school FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        # 기존 student_id를 school로 변경하는 작업이 필요할 수 있으나,
+        # 단순 컬럼 추가만 진행하며 기존 데이터는 유지합니다.
+        c.execute("ALTER TABLE users ADD COLUMN school TEXT")
+        st.info("데이터베이스 스키마를 업데이트했습니다 (users 테이블에 school 컬럼 추가).")
+    
     conn.commit()
     conn.close()
 
@@ -154,8 +175,6 @@ def login(username, password):
     st.session_state.username = username
     return True, "로그인 성공!"
 
-# ... (like_post, has_user_liked, create_post, delete_post, add_comment, get_comments 함수는 변경 없음)
-
 def create_post(title, content, is_anonymous=False):
     """게시글 작성."""
     author = "익명" if is_anonymous else st.session_state.username
@@ -172,6 +191,7 @@ def get_all_posts():
     """모든 게시글을 최신순으로 가져오기 (홈 화면에 필요한 필드만)."""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
+    # 이 쿼리에서 'views' 컬럼을 찾지 못하는 오류를 위에서 처리했습니다.
     c.execute("SELECT id, title, author, created_at, likes, views FROM posts ORDER BY id DESC")
     posts = c.fetchall()
     conn.close()
@@ -186,8 +206,6 @@ def get_recommended_posts(current_post_id, limit=3):
     posts = c.fetchall()
     conn.close()
     return posts
-
-# ... (이하 나머지 DB 함수는 변경 없음)
 
 def like_post(post_id, username):
     """좋아요 토글 (메시지 없음)."""
@@ -290,7 +308,7 @@ def show_login_page():
             st.session_state.page = "signup"
             st.rerun()
 
-# ✅ 회원가입 페이지 (학교 선택 드롭다운으로 변경)
+# ✅ 회원가입 페이지 (학교 선택 드롭다운)
 def show_signup_page():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
@@ -318,7 +336,7 @@ def show_signup_page():
             password = st.text_input("비밀번호", type="password", help="8자 이상, 대/소문자/숫자 포함")
             email = st.text_input("이메일")
             
-            # 📌 학번 입력 대신 학교 선택 드롭다운 사용
+            # 학교 선택 드롭다운 사용
             school = st.selectbox("학교를 선택하세요", options=SCHOOLS, index=0)
 
             if st.form_submit_button("회원가입 완료", use_container_width=True):
@@ -336,7 +354,7 @@ def show_signup_page():
             st.rerun()
     conn.close()
 
-# ✅ 게시판 목록 페이지 (조회수 컬럼 추가)
+# ✅ 게시판 목록 페이지 (조회수 컬럼 표시)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
@@ -381,7 +399,7 @@ def show_home_page():
 
 # ✅ 게시글 상세 페이지 (좋아요, 조회수 표시 위치 및 추천 게시글 추가)
 def show_post_detail(post_id):
-    # 📌 상세 페이지 진입 시 조회수 증가
+    # 상세 페이지 진입 시 조회수 증가
     increment_views(post_id)
     
     post = get_post_by_id(post_id)
@@ -404,7 +422,7 @@ def show_post_detail(post_id):
     st.write(content)
     st.markdown("---")
 
-    # 📌 좋아요 및 조회수 표시 (내용 아래쪽)
+    # 좋아요 및 조회수 표시 (내용 아래쪽)
     col_metrics, col_spacer = st.columns([3, 7])
     with col_metrics:
         st.markdown(f'<span class="metric-heart">❤️ 좋아요 {likes}</span> <span class="metric-view">👀 조회수 {views}</span>', unsafe_allow_html=True)
@@ -517,7 +535,7 @@ def show_write_page():
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지 (학교 정보 표시로 변경)
+# ✅ 프로필 페이지 (학교 정보 표시)
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
@@ -531,13 +549,14 @@ def show_profile_page():
         username, email, school, created = user
         st.metric(label="아이디", value=username)
         st.metric(label="이메일", value=email)
-        st.metric(label="소속 학교", value=school) # 학교 정보 표시
+        st.metric(label="소속 학교", value=school or "정보 없음") # 학교 정보 표시
         st.metric(label="가입일", value=created)
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
 
 # ✅ 메인 실행
 def main():
+    # 📌 DB 초기화 및 마이그레이션 실행
     init_db()
 
     # 세션 상태 초기화
