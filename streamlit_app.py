@@ -440,10 +440,9 @@ def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username = ?", (st.session_state.username,))
+    c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
-
     if user:
         username, _, email, student_id, created = user
         st.metric(label="아이디", value=username)
