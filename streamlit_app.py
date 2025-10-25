@@ -208,9 +208,7 @@ def show_home_page():
             like_post(post[0])
             st.rerun()
         st.divider()
-existing_like = Like.query.filter_by(user_id=user_id, post_id=post_id).first()
-    if existing_like:
-        return jsonify({'message': '이미 좋아요를 누르셨습니다.'}), 400
+
 
 # ✅ 페이지: 글쓰기
 def show_write_page():
