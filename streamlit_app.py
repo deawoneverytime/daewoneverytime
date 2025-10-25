@@ -28,8 +28,8 @@ STYLING = """
     margin-top: 15px;
 }
 /* 게시글 목록 제목 스타일 (클릭 가능한 텍스트처럼 보이게 함) */
-/* ✨ 이 CSS가 st.button의 기본 스타일을 덮어씁니다. */
-div[data-testid^="stColumn"] button {
+/* div[data-testid^="stColumn"] div[data-testid="stButton"]는 버튼 전체 컨테이너를 가리킴 */
+div[data-testid^="stColumn"] div[data-testid="stButton"] > button {
     /* 기본 배경/테두리 제거 */
     background-color: transparent !important;
     border: none !important;
@@ -41,10 +41,15 @@ div[data-testid^="stColumn"] button {
     padding: 0 !important;
     margin: 0 !important;
     cursor: pointer !important;
+    width: 100%; /* 컬럼 내에서 최대한 넓게 사용하도록 강제 */
+    /* 텍스트가 컬럼 영역을 벗어나지 않도록 설정 */
+    white-space: nowrap; 
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* 호버 시 밑줄 및 색상 변경 (링크처럼) */
-div[data-testid^="stColumn"] button:hover {
+div[data-testid^="stColumn"] div[data-testid="stButton"] > button:hover {
     color: #1E90FF !important; /* 대원 블루로 변경 */
     text-decoration: underline !important;
     background-color: transparent !important;
@@ -117,10 +122,9 @@ def hash_password(password):
 # ✅ 사용자 정의 DB 함수
 
 def get_post_by_id(post_id):
-    """특정 ID의 게시글을 가져옵니다. (수정: 컬럼 명시)"""
+    """특정 ID의 게시글을 가져옵니다. (컬럼 명시)"""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    # FIX: SELECT * 대신 7개의 컬럼을 명시적으로 선택합니다. (상세보기 오류 해결)
     c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
@@ -334,12 +338,14 @@ def show_home_page():
     for post in posts:
         post_id, title, author, created_at, likes = post
         
-        # st.button을 사용하여 클릭 이벤트를 유지하되, CSS로 스타일을 투명하게 만듦
+        # 1. 컬럼 정의
         col1, col2, col3, col4 = st.columns([4, 1.5, 1, 0.5])
         
+        # 2. 버튼 배치 (use_container_width=False로 변경하여 충돌 가능성 최소화)
         with col1:
             # CSS로 스타일링된 버튼을 사용하여 클릭 가능하게 함
-            if st.button(title, key=f"post_title_{post_id}", use_container_width=True):
+            # use_container_width=True를 제거하여 반복문 내 충돌 가능성을 줄입니다.
+            if st.button(title, key=f"post_title_{post_id}"): 
                 go_to_detail(post_id)
         
         col2.write(author)
@@ -468,7 +474,6 @@ def show_profile_page():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     
-    # FIX: SELECT * 대신 5개의 컬럼을 명시적으로 선택합니다. (내 정보 오류 해결)
     c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
