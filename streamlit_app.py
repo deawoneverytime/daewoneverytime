@@ -9,7 +9,8 @@ st.set_page_config(page_title="대원대학교 에브리타임", page_icon="🎓
 
 # ✅ 이메일 & 비밀번호 정규식
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'  # 8자 이상, 대문자, 소문자, 숫자 포함
+# 8자 이상, 대문자(?=.*[A-Z]), 소문자(?=.*[a-z]), 숫자(?=.*\d) 각각 최소 1개 포함
+PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
 
 # ✅ DB 초기화
 def init_db():
@@ -57,7 +58,7 @@ def signup(username, password, email, student_id):
     if not re.match(EMAIL_REGEX, email):
         return False, "잘못된 이메일 형식입니다. (예: example@domain.com)"
 
-    # 비밀번호 강도 검증
+    # 🔥🔥🔥 비밀번호 강도 검증 로직 (요청하신 부분) 🔥🔥🔥
     if not re.match(PASSWORD_REGEX, password):
         return False, (
             "비밀번호는 8자 이상이어야 하며, "
@@ -67,13 +68,13 @@ def signup(username, password, email, student_id):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # 아이디 중복 확인
+    # 🔥🔥🔥 아이디 중복 확인 로직 (요청하신 부분) 🔥🔥🔥
     c.execute("SELECT * FROM users WHERE username = ?", (username,))
     if c.fetchone():
         conn.close()
         return False, "이미 존재하는 아이디입니다."
 
-    # 이메일 중복 확인
+    # 🔥🔥🔥 이메일 중복 확인 로직 (요청하신 부분) 🔥🔥🔥
     c.execute("SELECT * FROM users WHERE email = ?", (email,))
     if c.fetchone():
         conn.close()
@@ -116,7 +117,7 @@ def create_post(title, content, is_anonymous=False):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
+              VALUES (?, ?, ?, ?, ?)''',
               (title, content, author, st.session_state.username,
                datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
@@ -151,7 +152,7 @@ def add_comment(post_id, content, is_anonymous=False):
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     c.execute('''INSERT INTO comments (post_id, author, real_author, content, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
+              VALUES (?, ?, ?, ?, ?)''',
               (post_id, author, st.session_state.username, content,
                datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
@@ -197,7 +198,9 @@ def show_login_page():
 
         with tab2:
             username = st.text_input("아이디", key="signup_user")
-            password = st.text_input("비밀번호", type="password", key="signup_pw")
+            # 비밀번호 입력 필드 바로 아래에 강도 제약 조건을 표시합니다.
+            password = st.text_input("비밀번호", type="password", key="signup_pw",
+                                     help="8자 이상, 대문자, 소문자, 숫자 포함")
             email = st.text_input("이메일")
             student_id = st.text_input("학번")
 
@@ -222,7 +225,7 @@ def show_home_page():
 
     for post in posts:
         post_id, title, content, author, real_author, created_at, likes = post
-        with st.container():
+        with st.container(border=True):
             st.subheader(f"📝 {title}")
             st.caption(f"{author} | {created_at}")
             st.write(content)
@@ -246,7 +249,7 @@ def show_home_page():
 
             for c in comments:
                 author, content, created = c
-                st.write(f"👤 {author} | {created}")
+                st.write(f"👤 **{author}** | _{created}_")
                 st.write(f"🗨️ {content}")
                 st.markdown("---")
 
@@ -316,18 +319,18 @@ def main():
         st.title("🎓 대원대학교 커뮤니티")
 
         if st.session_state.logged_in:
-            st.success(f"{st.session_state.username}님 환영합니다!")
-            if st.button("🏠 홈"):
+            st.success(f"**{st.session_state.username}**님 환영합니다!")
+            if st.button("🏠 홈", use_container_width=True):
                 st.session_state.page = "home"
                 st.rerun()
-            if st.button("✍️ 글쓰기"):
+            if st.button("✍️ 글쓰기", use_container_width=True):
                 st.session_state.page = "write"
                 st.rerun()
-            if st.button("👤 내 정보"):
+            if st.button("👤 내 정보", use_container_width=True):
                 st.session_state.page = "profile"
                 st.rerun()
             st.divider()
-            if st.button("🚪 로그아웃"):
+            if st.button("🚪 로그아웃", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.username = None
                 st.session_state.page = "home"
