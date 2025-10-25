@@ -1,30 +1,29 @@
 import streamlit as st
 import sqlite3
 import hashlib
-import re  # ✅ 이메일 형식 검증용
+import re
 from datetime import datetime
 
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원대학교 에브리타임", page_icon="🎓", layout="wide")
 
-# ✅ 이메일 형식 정규식
+# ✅ 이메일 & 비밀번호 정규식
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'  # 8자 이상, 대문자, 소문자, 숫자 포함
 
-# ✅ DB 초기화 함수
+# ✅ DB 초기화
 def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # 사용자 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
-        email TEXT,
+        email TEXT UNIQUE,
         student_id TEXT,
         created_at TEXT
     )''')
 
-    # 게시글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -35,7 +34,6 @@ def init_db():
         likes INTEGER DEFAULT 0
     )''')
 
-    # 댓글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER,
@@ -53,24 +51,35 @@ def init_db():
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ✅ 회원가입 (이메일 검증 포함)
+# ✅ 회원가입 (모든 검증 포함)
 def signup(username, password, email, student_id):
     # 이메일 형식 검증
     if not re.match(EMAIL_REGEX, email):
         return False, "잘못된 이메일 형식입니다. (예: example@domain.com)"
 
-    # 비밀번호 길이 검증
-    if len(password) < 6:
-        return False, "비밀번호는 6자 이상이어야 합니다."
+    # 비밀번호 강도 검증
+    if not re.match(PASSWORD_REGEX, password):
+        return False, (
+            "비밀번호는 8자 이상이어야 하며, "
+            "대문자, 소문자, 숫자를 각각 최소 1개 이상 포함해야 합니다."
+        )
 
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
+    # 아이디 중복 확인
     c.execute("SELECT * FROM users WHERE username = ?", (username,))
     if c.fetchone():
         conn.close()
-        return False, "이미 존재하는 사용자명입니다."
+        return False, "이미 존재하는 아이디입니다."
 
+    # 이메일 중복 확인
+    c.execute("SELECT * FROM users WHERE email = ?", (email,))
+    if c.fetchone():
+        conn.close()
+        return False, "이미 등록된 이메일입니다."
+
+    # 데이터 삽입
     c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", (
         username,
         hash_password(password),
@@ -165,7 +174,7 @@ def like_post(post_id):
     conn.commit()
     conn.close()
 
-# ✅ 로그인 페이지
+# ✅ 로그인 / 회원가입 페이지
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -199,9 +208,100 @@ def show_login_page():
                 else:
                     st.error(msg)
 
-# ✅ 나머지 페이지 함수들 (게시판/글쓰기/프로필 등)
-# 👉 그대로 유지 (변경 없음)
-# ... [생략: show_home_page(), show_write_page(), show_profile_page(), main() 등 기존 그대로]
+# ✅ 게시판 페이지
+def show_home_page():
+    st.title("📋 자유게시판")
+
+    posts = get_all_posts()
+    if not posts:
+        st.info("아직 게시글이 없습니다. 첫 글을 작성해보세요!")
+        if st.button("✍️ 글쓰기"):
+            st.session_state.page = "write"
+            st.rerun()
+        return
+
+    for post in posts:
+        post_id, title, content, author, real_author, created_at, likes = post
+        with st.container():
+            st.subheader(f"📝 {title}")
+            st.caption(f"{author} | {created_at}")
+            st.write(content)
+            st.metric("❤️ 좋아요", likes)
+
+            col1, col2, col3 = st.columns([1, 1, 4])
+            with col1:
+                if st.button("❤️ 좋아요", key=f"like_{post_id}"):
+                    like_post(post_id)
+                    st.rerun()
+            with col2:
+                if real_author == st.session_state.username:
+                    if st.button("🗑️ 삭제", key=f"del_{post_id}"):
+                        delete_post(post_id)
+                        st.success("삭제 완료!")
+                        st.rerun()
+
+            st.divider()
+            comments = get_comments(post_id)
+            st.subheader(f"💬 댓글 ({len(comments)})")
+
+            for c in comments:
+                author, content, created = c
+                st.write(f"👤 {author} | {created}")
+                st.write(f"🗨️ {content}")
+                st.markdown("---")
+
+            comment_text = st.text_area("댓글 작성", key=f"comment_box_{post_id}", height=80)
+            colA, colB = st.columns([3, 1])
+            with colA:
+                anonymous = st.checkbox("익명으로 작성", key=f"anon_{post_id}")
+            with colB:
+                if st.button("댓글 등록", key=f"submit_comment_{post_id}"):
+                    if comment_text.strip():
+                        add_comment(post_id, comment_text, anonymous)
+                        st.success("댓글이 작성되었습니다!")
+                        st.rerun()
+                    else:
+                        st.warning("댓글 내용을 입력하세요.")
+
+# ✅ 글쓰기 페이지
+def show_write_page():
+    st.title("✍️ 글쓰기")
+    title = st.text_input("제목")
+    content = st.text_area("내용", height=300)
+    anonymous = st.checkbox("익명으로 작성")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("등록"):
+            if title.strip() and content.strip():
+                create_post(title, content, anonymous)
+                st.success("게시글이 작성되었습니다!")
+                st.session_state.page = "home"
+                st.rerun()
+            else:
+                st.warning("제목과 내용을 모두 입력해주세요.")
+    with col2:
+        if st.button("취소"):
+            st.session_state.page = "home"
+            st.rerun()
+
+# ✅ 프로필 페이지
+def show_profile_page():
+    st.title("👤 내 정보")
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username = ?", (st.session_state.username,))
+    user = c.fetchone()
+    conn.close()
+
+    if user:
+        username, _, email, student_id, created = user
+        st.info(f"**아이디:** {username}")
+        st.info(f"**이메일:** {email}")
+        st.info(f"**학번:** {student_id}")
+        st.info(f"**가입일:** {created}")
+    else:
+        st.error("사용자 정보를 불러올 수 없습니다.")
 
 # ✅ 메인 실행
 def main():
@@ -235,7 +335,6 @@ def main():
         else:
             st.info("로그인이 필요합니다.")
 
-    # 페이지 라우팅
     if not st.session_state.logged_in:
         show_login_page()
     else:
