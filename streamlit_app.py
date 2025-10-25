@@ -27,12 +27,30 @@ STYLING = """
     padding-bottom: 5px;
     margin-top: 15px;
 }
-/* 게시글 목록 제목 스타일 */
-.post-list-title {
-    font-weight: 600;
-    color: #1E90FF;
-    cursor: pointer; /* 클릭 가능한 요소임을 표시 */
+/* 게시글 목록 제목 스타일 (클릭 가능한 텍스트처럼 보이게 함) */
+/* ✨ 이 CSS가 st.button의 기본 스타일을 덮어씁니다. */
+div[data-testid^="stColumn"] button {
+    /* 기본 배경/테두리 제거 */
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    /* 텍스트 스타일 */
+    color: #333333 !important; /* 기본 텍스트 색상 */
+    font-weight: 600 !important;
+    text-align: left !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
 }
+
+/* 호버 시 밑줄 및 색상 변경 (링크처럼) */
+div[data-testid^="stColumn"] button:hover {
+    color: #1E90FF !important; /* 대원 블루로 변경 */
+    text-decoration: underline !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
 /* 좋아요 수 표시 스타일 */
 .metric-heart {
     font-size: 1.2em;
@@ -53,7 +71,6 @@ def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # users 테이블 (5개 컬럼)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
@@ -62,7 +79,6 @@ def init_db():
         created_at TEXT
     )''')
 
-    # posts 테이블 (7개 컬럼)
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -73,7 +89,6 @@ def init_db():
         likes INTEGER DEFAULT 0
     )''')
 
-    # comments 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER,
@@ -84,7 +99,6 @@ def init_db():
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
 
-    # likes 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS likes (
         username TEXT,
         post_id INTEGER,
@@ -106,7 +120,7 @@ def get_post_by_id(post_id):
     """특정 ID의 게시글을 가져옵니다. (수정: 컬럼 명시)"""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    # FIX: SELECT * 대신 7개의 컬럼을 명시적으로 선택합니다.
+    # FIX: SELECT * 대신 7개의 컬럼을 명시적으로 선택합니다. (상세보기 오류 해결)
     c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
@@ -219,7 +233,6 @@ def go_to_detail(post_id):
     """게시글 상세 페이지로 이동하며 ID 저장."""
     st.session_state.page = "detail"
     st.session_state.selected_post_id = post_id
-    # st.rerun() 대신 st.experimental_rerun() 또는 st.rerun()을 사용 (Streamlit 버전 고려)
     st.rerun()
 
 # ✅ 로그인 페이지
@@ -293,7 +306,7 @@ def show_signup_page():
     conn.close()
 
 
-# ✅ 게시판 목록 페이지 (간소화된 리스트 뷰)
+# ✅ 게시판 목록 페이지 (UI 수정: 제목을 버튼이 아닌 텍스트 링크처럼 보이게 함)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
@@ -317,28 +330,26 @@ def show_home_page():
     header_col4.markdown('**❤️**', unsafe_allow_html=True)
     st.markdown("---")
     
-    # 게시글 목록 (간소화)
+    # 게시글 목록 (수정된 텍스트 링크 스타일 적용)
     for post in posts:
         post_id, title, author, created_at, likes = post
         
+        # st.button을 사용하여 클릭 이벤트를 유지하되, CSS로 스타일을 투명하게 만듦
         col1, col2, col3, col4 = st.columns([4, 1.5, 1, 0.5])
         
-        # 제목을 클릭하면 상세 페이지로 이동
         with col1:
-            # 제목을 버튼 대신 markdown과 click handler를 사용하는 방식으로 변경하여 클릭 영역 확대
-            # 이전에 사용된 방식은 Streamlit의 Button 재사용 문제로 인해 오류를 발생시킬 수 있습니다.
-            # 하지만 원본 코드를 최대한 유지하며, Streamlit의 고유 key 관리를 위해 button을 유지합니다.
+            # CSS로 스타일링된 버튼을 사용하여 클릭 가능하게 함
             if st.button(title, key=f"post_title_{post_id}", use_container_width=True):
                 go_to_detail(post_id)
         
         col2.write(author)
         col3.write(created_at[:10]) # 날짜만 표시
         col4.write(likes)
+        st.markdown("---", anchor=False) # 게시글 간 구분선
 
 
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
-    # 수정된 get_post_by_id 함수를 사용합니다.
     post = get_post_by_id(post_id)
     if not post:
         st.error("존재하지 않는 게시글입니다.")
@@ -410,7 +421,7 @@ def show_post_detail(post_id):
         st.info("아직 댓글이 없습니다.")
 
     st.markdown('#### 댓글 작성')
-    # 댓글 작성 폼 (clear_on_submit=True를 사용하여 제출 후 텍스트 영역을 자동으로 비웁니다.)
+    # 댓글 작성 폼
     with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
         comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
         
@@ -451,13 +462,13 @@ def show_write_page():
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지 (수정: 컬럼 명시)
+# ✅ 프로필 페이지
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
     
-    # FIX: SELECT * 대신 5개의 컬럼을 명시적으로 선택합니다. (password는 사용하지 않으므로 포함 후 무시)
+    # FIX: SELECT * 대신 5개의 컬럼을 명시적으로 선택합니다. (내 정보 오류 해결)
     c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
@@ -469,8 +480,6 @@ def show_profile_page():
         st.metric(label="이메일", value=email)
         st.metric(label="학번", value=student_id)
         st.metric(label="가입일", value=created)
-        
-        # 비밀번호 변경 등 추가 기능은 생략
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
         if st.button("홈으로 돌아가기", key="profile_error_back"):
