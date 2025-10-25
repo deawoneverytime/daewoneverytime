@@ -138,7 +138,7 @@ def like_post(post_id):
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🎓 대원타임")
+        st.title("🎓 Daewon time")
         st.subheader("로그인")
 
         username = st.text_input("아이디")
