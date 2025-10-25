@@ -259,7 +259,7 @@ def show_login_page():
                 else:
                     st.error(msg)
 
-        st.markdown("---")
+        st.divider()
         st.markdown("계정이 없으신가요? **회원가입**을 진행하세요.")
         if st.button("회원가입하기", use_container_width=True, key="go_to_signup"):
             st.session_state.page = "signup"
@@ -303,7 +303,7 @@ def show_signup_page():
                 else:
                     st.error(msg)
 
-        st.markdown("---")
+        st.divider()
         if st.button("로그인 페이지로 돌아가기", use_container_width=True):
             st.session_state.page = "login"
             st.rerun()
@@ -319,7 +319,7 @@ def show_home_page():
         if st.button("✍️ 글쓰기", use_container_width=True, type="primary"):
             st.session_state.page = "write"
             st.rerun()
-    st.markdown("---")
+    st.divider() # --- (수정) markdown 대신 divider 사용
 
     posts = get_all_posts()
     if not posts:
@@ -332,7 +332,7 @@ def show_home_page():
     header_col2.markdown('**작성자**', unsafe_allow_html=True)
     header_col3.markdown('**작성일**', unsafe_allow_html=True)
     header_col4.markdown('**❤️**', unsafe_allow_html=True)
-    st.markdown("---")
+    st.divider() # --- (수정) markdown 대신 divider 사용
     
     # 게시글 목록 (수정된 텍스트 링크 스타일 적용)
     for post in posts:
@@ -344,14 +344,15 @@ def show_home_page():
         # 2. 버튼 배치 (use_container_width=False로 변경하여 충돌 가능성 최소화)
         with col1:
             # CSS로 스타일링된 버튼을 사용하여 클릭 가능하게 함
-            # use_container_width=True를 제거하여 반복문 내 충돌 가능성을 줄입니다.
             if st.button(title, key=f"post_title_{post_id}"): 
                 go_to_detail(post_id)
         
         col2.write(author)
         col3.write(created_at[:10]) # 날짜만 표시
         col4.write(likes)
-        st.markdown("---", anchor=False) # 게시글 간 구분선
+        
+        # 3. 구분선 (수정: st.divider()로 교체)
+        st.divider()
 
 
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
@@ -370,11 +371,11 @@ def show_post_detail(post_id):
 
     st.markdown(f'## {title}')
     st.caption(f"**작성자:** {author} | **작성일:** {created_at} | **❤️ {likes}**")
-    st.markdown("---")
+    st.divider()
     
     # 게시글 내용
     st.write(content)
-    st.markdown("---")
+    st.divider()
 
     col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
     
@@ -403,7 +404,7 @@ def show_post_detail(post_id):
             st.session_state.page = "home"
             st.rerun()
 
-    st.markdown("---")
+    st.divider()
 
     # ✅ 댓글 섹션
     st.markdown('### 💬 댓글')
@@ -505,7 +506,7 @@ def main():
     # 사이드바 (내비게이션)
     with st.sidebar:
         st.markdown('<p style="font-size: 1.5em; font-weight: 700;">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
-        st.markdown("---")
+        st.divider()
 
         if st.session_state.logged_in:
             st.success(f"**{st.session_state.username}**님 환영합니다!")
@@ -521,7 +522,7 @@ def main():
                 st.session_state.page = "profile"
                 st.rerun()
                 
-            st.markdown("---")
+            st.divider()
             if st.button("🚪 로그아웃", use_container_width=True, type="secondary"):
                 st.session_state.logged_in = False
                 st.session_state.username = None
