@@ -7,6 +7,9 @@ from datetime import datetime
 # ✅ 페이지 설정
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
+# ✅ 학교 목록 정의 (회원가입 드롭다운에 사용)
+SCHOOLS = ["대원고등학교", "대원여자고등학교", "대원외국어고등학교"]
+
 # ✅ CSS 스타일링: 감각적인 디자인을 위한 사용자 지정 CSS
 STYLING = """
 <style>
@@ -35,9 +38,27 @@ STYLING = """
 }
 /* 좋아요 수 표시 스타일 */
 .metric-heart {
-    font-size: 1.2em;
+    font-size: 1.1em;
     font-weight: 700;
     color: #FF4B4B; /* Red for Likes */
+    margin-right: 10px;
+}
+/* 조회수 표시 스타일 */
+.metric-view {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: #4CAF50; /* Green for Views */
+}
+/* 추천 게시글 카드 스타일 */
+.recommend-card {
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    transition: box-shadow 0.3s;
+}
+.recommend-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 </style>
 """
@@ -48,29 +69,33 @@ st.markdown(STYLING, unsafe_allow_html=True)
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
 
-# ✅ DB 초기화: 필요한 테이블 생성
+# ✅ DB 초기화: 필요한 테이블 생성 (views 컬럼 추가, student_id -> school 변경)
 def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
+    # 사용자 테이블 (student_id -> school로 컬럼명 변경)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
         email TEXT UNIQUE,
-        student_id TEXT,
+        school TEXT,            -- 학교 선택 항목으로 변경
         created_at TEXT
     )''')
 
+    # 게시글 테이블 (views 컬럼 추가)
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
         content TEXT,
-        author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
+        author TEXT,
+        real_author TEXT,
         created_at TEXT,
-        likes INTEGER DEFAULT 0
+        likes INTEGER DEFAULT 0,
+        views INTEGER DEFAULT 0     -- 조회수 컬럼 추가
     )''')
 
+    # 댓글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER,
@@ -81,6 +106,7 @@ def init_db():
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
 
+    # 좋아요 기록 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS likes (
         username TEXT,
         post_id INTEGER,
@@ -107,6 +133,14 @@ def get_post_by_id(post_id):
     conn.close()
     return post
 
+def increment_views(post_id):
+    """게시글의 조회수를 1 증가시킵니다."""
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute("UPDATE posts SET views = views + 1 WHERE id = ?", (post_id,))
+    conn.commit()
+    conn.close()
+
 def login(username, password):
     """로그인 처리."""
     conn = sqlite3.connect("data.db")
@@ -119,6 +153,41 @@ def login(username, password):
     st.session_state.logged_in = True
     st.session_state.username = username
     return True, "로그인 성공!"
+
+# ... (like_post, has_user_liked, create_post, delete_post, add_comment, get_comments 함수는 변경 없음)
+
+def create_post(title, content, is_anonymous=False):
+    """게시글 작성."""
+    author = "익명" if is_anonymous else st.session_state.username
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute('''INSERT INTO posts (title, content, author, real_author, created_at, likes, views)
+              VALUES (?, ?, ?, ?, ?, 0, 0)''',
+              (title, content, author, st.session_state.username,
+               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+
+def get_all_posts():
+    """모든 게시글을 최신순으로 가져오기 (홈 화면에 필요한 필드만)."""
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute("SELECT id, title, author, created_at, likes, views FROM posts ORDER BY id DESC")
+    posts = c.fetchall()
+    conn.close()
+    return posts
+
+def get_recommended_posts(current_post_id, limit=3):
+    """현재 게시글을 제외한 최신 게시물 N개를 가져옵니다."""
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    # 최신 순으로 정렬하고 현재 ID를 제외
+    c.execute(f"SELECT id, title FROM posts WHERE id != ? ORDER BY id DESC LIMIT {limit}", (current_post_id,))
+    posts = c.fetchall()
+    conn.close()
+    return posts
+
+# ... (이하 나머지 DB 함수는 변경 없음)
 
 def like_post(post_id, username):
     """좋아요 토글 (메시지 없음)."""
@@ -148,27 +217,6 @@ def has_user_liked(post_id, username):
     liked = c.fetchone() is not None
     conn.close()
     return liked
-
-def create_post(title, content, is_anonymous=False):
-    """게시글 작성."""
-    author = "익명" if is_anonymous else st.session_state.username
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
-              VALUES (?, ?, ?, ?, ?)''',
-              (title, content, author, st.session_state.username,
-               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
-
-def get_all_posts():
-    """모든 게시글을 최신순으로 가져오기."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT id, title, author, created_at, likes FROM posts ORDER BY id DESC")
-    posts = c.fetchall()
-    conn.close()
-    return posts
 
 def delete_post(post_id):
     """게시글 및 관련 댓글, 좋아요 기록 삭제."""
@@ -216,7 +264,7 @@ def go_to_detail(post_id):
     st.session_state.selected_post_id = post_id
     st.rerun()
 
-# ✅ 로그인 페이지
+# ✅ 로그인 페이지 (변경 없음)
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -242,22 +290,21 @@ def show_login_page():
             st.session_state.page = "signup"
             st.rerun()
 
-# ✅ 회원가입 페이지 (구현 생략 - 기존 로직 재활용)
+# ✅ 회원가입 페이지 (학교 선택 드롭다운으로 변경)
 def show_signup_page():
-    # 이 부분은 변경 없음
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    def signup(username, password, email, student_id):
+    def signup(username, password, email, school):
         if not re.match(EMAIL_REGEX, email) or not re.match(PASSWORD_REGEX, password):
-            return False, "입력 형식을 확인하세요."
+            return False, "입력 형식을 확인하세요. (비밀번호: 8자 이상, 대/소문자/숫자 포함)"
         try:
             c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", (
-                username, hash_password(password), email, student_id,
+                username, hash_password(password), email, school,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ))
             conn.commit()
-            return True, "회원가입이 완료되었습니다!"
+            return True, "회원가입이 완료되었습니다! 로그인해 주세요."
         except sqlite3.IntegrityError:
             return False, "이미 존재하는 아이디 또는 이메일입니다."
 
@@ -270,10 +317,12 @@ def show_signup_page():
             username = st.text_input("아이디")
             password = st.text_input("비밀번호", type="password", help="8자 이상, 대/소문자/숫자 포함")
             email = st.text_input("이메일")
-            student_id = st.text_input("학번")
+            
+            # 📌 학번 입력 대신 학교 선택 드롭다운 사용
+            school = st.selectbox("학교를 선택하세요", options=SCHOOLS, index=0)
 
             if st.form_submit_button("회원가입 완료", use_container_width=True):
-                success, msg = signup(username, password, email, student_id)
+                success, msg = signup(username, password, email, school)
                 if success:
                     st.success(msg)
                     st.session_state.page = "login"
@@ -287,8 +336,7 @@ def show_signup_page():
             st.rerun()
     conn.close()
 
-
-# ✅ 게시판 목록 페이지 (간소화된 리스트 뷰)
+# ✅ 게시판 목록 페이지 (조회수 컬럼 추가)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
@@ -304,19 +352,21 @@ def show_home_page():
         st.info("아직 게시글이 없습니다. 첫 글을 작성해보세요!")
         return
 
-    # 게시글 목록 헤더
-    header_col1, header_col2, header_col3, header_col4 = st.columns([4, 1.5, 1, 0.5])
+    # 게시글 목록 헤더 (조회수 추가)
+    header_col1, header_col2, header_col3, header_col4, header_col5 = st.columns([4, 1.5, 1, 0.5, 0.5])
     header_col1.markdown('**제목**', unsafe_allow_html=True)
     header_col2.markdown('**작성자**', unsafe_allow_html=True)
     header_col3.markdown('**작성일**', unsafe_allow_html=True)
     header_col4.markdown('**❤️**', unsafe_allow_html=True)
+    header_col5.markdown('**👀**', unsafe_allow_html=True) # 조회수 헤더
     st.markdown("---")
     
     # 게시글 목록 (간소화)
     for post in posts:
-        post_id, title, author, created_at, likes = post
+        # DB에서 가져오는 순서: id, title, author, created_at, likes, views
+        post_id, title, author, created_at, likes, views = post
         
-        col1, col2, col3, col4 = st.columns([4, 1.5, 1, 0.5])
+        col1, col2, col3, col4, col5 = st.columns([4, 1.5, 1, 0.5, 0.5])
         
         # 제목을 클릭하면 상세 페이지로 이동
         with col1:
@@ -326,10 +376,14 @@ def show_home_page():
         col2.write(author)
         col3.write(created_at[:10]) # 날짜만 표시
         col4.write(likes)
+        col5.write(views) # 조회수 표시
 
 
-# ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
+# ✅ 게시글 상세 페이지 (좋아요, 조회수 표시 위치 및 추천 게시글 추가)
 def show_post_detail(post_id):
+    # 📌 상세 페이지 진입 시 조회수 증가
+    increment_views(post_id)
+    
     post = get_post_by_id(post_id)
     if not post:
         st.error("존재하지 않는 게시글입니다.")
@@ -338,17 +392,26 @@ def show_post_detail(post_id):
             st.rerun()
         return
 
-    post_id, title, content, author, real_author, created_at, likes = post
+    # DB에서 가져오는 순서: id, title, content, author, real_author, created_at, likes, views
+    post_id, title, content, author, real_author, created_at, likes, views = post
     username = st.session_state.username
 
     st.markdown(f'## {title}')
-    st.caption(f"**작성자:** {author} | **작성일:** {created_at} | **❤️ {likes}**")
+    st.caption(f"**작성자:** {author} | **작성일:** {created_at}")
     st.markdown("---")
     
     # 게시글 내용
     st.write(content)
     st.markdown("---")
 
+    # 📌 좋아요 및 조회수 표시 (내용 아래쪽)
+    col_metrics, col_spacer = st.columns([3, 7])
+    with col_metrics:
+        st.markdown(f'<span class="metric-heart">❤️ 좋아요 {likes}</span> <span class="metric-view">👀 조회수 {views}</span>', unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # 액션 버튼 영역
     col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
     
     # 좋아요 버튼
@@ -382,7 +445,6 @@ def show_post_detail(post_id):
     st.markdown('### 💬 댓글')
     comments = get_comments(post_id)
     
-    # 댓글 목록 표시
     if comments:
         for c in comments:
             c_author, c_content, c_created = c
@@ -393,7 +455,7 @@ def show_post_detail(post_id):
         st.info("아직 댓글이 없습니다.")
 
     st.markdown('#### 댓글 작성')
-    # 댓글 작성 폼 (clear_on_submit=True를 사용하여 제출 후 텍스트 영역을 자동으로 비웁니다.)
+    # clear_on_submit=True를 사용하여 제출 후 텍스트 영역을 자동으로 비웁니다.
     with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
         comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
         
@@ -405,13 +467,33 @@ def show_post_detail(post_id):
                 if comment_text.strip():
                     add_comment(post_id, comment_text, anonymous)
                     st.success("댓글이 등록되었습니다.")
-                    # form을 사용했기 때문에 text_area는 자동으로 비워짐. 페이지 상태만 업데이트
-                    st.rerun()
+                    st.rerun() # 댓글 목록 업데이트를 위해 페이지 새로고침
                 else:
                     st.warning("댓글 내용을 입력하세요.")
 
+    st.markdown("---")
+    
+    # 📌 추천 게시물 섹션
+    st.markdown('### 🌟 추천 게시물')
+    recommended_posts = get_recommended_posts(post_id, limit=3)
+    
+    if recommended_posts:
+        cols = st.columns(len(recommended_posts))
+        for i, (rec_id, rec_title) in enumerate(recommended_posts):
+            with cols[i]:
+                # 추천 게시글 카드
+                st.markdown(f'<div class="recommend-card">', unsafe_allow_html=True)
+                st.markdown(f"**{rec_title}**")
+                
+                # 버튼을 클릭하면 해당 게시물 상세 페이지로 이동
+                if st.button("보러가기", key=f"rec_btn_{rec_id}", use_container_width=True):
+                    go_to_detail(rec_id)
+                st.markdown(f'</div>', unsafe_allow_html=True)
+    else:
+        st.info("다른 게시글이 없습니다.")
 
-# ✅ 글쓰기 페이지 (기존 로직 유지)
+
+# ✅ 글쓰기 페이지 (변경 없음)
 def show_write_page():
     st.markdown('<p class="sub-header">✍️ 새 글 작성</p>', unsafe_allow_html=True)
     
@@ -435,20 +517,21 @@ def show_write_page():
                 st.session_state.page = "home"
                 st.rerun()
 
-# ✅ 프로필 페이지 (기존 로직 유지)
+# ✅ 프로필 페이지 (학교 정보 표시로 변경)
 def show_profile_page():
     st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username = ?", (st.session_state.username,))
+    # DB에서 사용자 정보 조회 (school 필드 포함)
+    c.execute("SELECT username, email, school, created_at FROM users WHERE username = ?", (st.session_state.username,))
     user = c.fetchone()
     conn.close()
 
     if user:
-        username, _, email, student_id, created = user
+        username, email, school, created = user
         st.metric(label="아이디", value=username)
         st.metric(label="이메일", value=email)
-        st.metric(label="학번", value=student_id)
+        st.metric(label="소속 학교", value=school) # 학교 정보 표시
         st.metric(label="가입일", value=created)
     else:
         st.error("사용자 정보를 불러올 수 없습니다.")
@@ -462,7 +545,7 @@ def main():
         st.session_state.logged_in = False
         st.session_state.username = None
         st.session_state.page = "login"
-        st.session_state.selected_post_id = None # 상세 페이지로 이동할 때 사용할 ID
+        st.session_state.selected_post_id = None
 
     # 사이드바 (내비게이션)
     with st.sidebar:
@@ -491,7 +574,6 @@ def main():
                 st.session_state.selected_post_id = None
                 st.rerun()
         else:
-            # 비로그인 상태일 때: 로그인/회원가입 페이지 외에는 접근할 수 없음
             st.info("로그인이 필요합니다.")
             
     # 페이지 라우팅
@@ -509,11 +591,9 @@ def main():
         elif st.session_state.page == "detail" and st.session_state.selected_post_id is not None:
             show_post_detail(st.session_state.selected_post_id)
         else:
-            # 기본적으로 홈 페이지로 리다이렉트
             st.session_state.page = "home"
             st.rerun()
     else:
-        # 로그인되지 않은 상태에서 다른 페이지로 이동 시도 시 로그인 페이지로
         show_login_page()
 
 
