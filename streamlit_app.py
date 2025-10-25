@@ -19,8 +19,8 @@ else:
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
 # ✅ CSS 스타일링: 모던하고 깔끔한 무채색 계열 디자인
-# Accent Color: #4A4A4A (Dark Slate Gray - Monochromatic Accent)
-# Title Color: #1E1E1E (Dark Charcoal)
+# Accent Color: #4A4A4A (Dark Slate Gray - Monochromatic Accent for general elements)
+# Primary Action Color: #1D4ED8 (Deep Blue - for key action buttons like Login, Register, Submit)
 STYLING = """
 <style>
 /* 배경색을 살짝 미색으로 변경 */
@@ -121,18 +121,18 @@ div[data-testid^="stHorizontalBlock"] {
     border-bottom: 1px solid #eee;
 }
 
-/* Primary 버튼 스타일 (Accent Color 적용) */
+/* Primary 버튼 스타일 (Deep Blue: #1D4ED8 적용) */
 .stButton button[data-testid="baseButton-primary"] {
-    background-color: #4A4A4A !important;
-    border-color: #4A4A4A !important;
+    background-color: #1D4ED8 !important; /* Deep Blue */
+    border-color: #1D4ED8 !important;
     color: white !important;
 }
 .stButton button[data-testid="baseButton-primary"]:hover {
-    background-color: #333333 !important; /* Darker on hover */
-    border-color: #333333 !important;
+    background-color: #1E40AF !important; /* Darker Deep Blue on hover */
+    border-color: #1E40AF !important;
 }
 
-/* Secondary 버튼 스타일 */
+/* Secondary 버튼 스타일 (기존 Accent Color #4A4A4A 유지, 비로그인 상태의 회원가입 버튼 등) */
 .stButton button[data-testid="baseButton-secondary"] {
     color: #4A4A4A !important; /* 텍스트 색상을 Accent Color로 */
     border-color: #E0E0E0 !important;
@@ -188,10 +188,11 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
         content TEXT,
-        author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
+        author TEXT,            -- 화면에 표시되는 작성자 (익명 또는 아이디)
+        real_author TEXT,       -- 실제 작성자 (아이디, 삭제 권한 확인용)
         created_at TEXT,
-        likes INTEGER DEFAULT 0
+        likes INTEGER DEFAULT 0,
+        views INTEGER DEFAULT 0  -- 뷰 카운트 추가
     )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
@@ -225,11 +226,21 @@ def get_post_by_id(post_id):
     """특정 ID의 게시글을 가져옵니다. (컬럼 명시)"""
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
+    # views 컬럼 추가로 8개 컬럼을 가져옵니다.
+    c.execute("SELECT id, title, content, author, real_author, created_at, likes, views FROM posts WHERE id = ?", (post_id,))
     post = c.fetchone()
     conn.close()
-    # 컬럼이 7개이므로 7개를 반환합니다: (id, title, content, author, real_author, created_at, likes)
+    # 컬럼이 8개이므로 8개를 반환합니다: (id, title, content, author, real_author, created_at, likes, views)
     return post 
+
+def increment_post_views(post_id):
+    """게시글 조회수를 1 증가시킵니다."""
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    c.execute("UPDATE posts SET views = views + 1 WHERE id = ?", (post_id,))
+    conn.commit()
+    conn.close()
+    return True
 
 def login(username, password):
     """로그인 처리."""
@@ -278,6 +289,7 @@ def create_post(title, content, is_anonymous=False):
     author = "익명" if is_anonymous else st.session_state.username
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
+    # views 컬럼의 기본값(0)을 사용합니다.
     c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
                   VALUES (?, ?, ?, ?, ?)''',
               (title, content, author, st.session_state.username,
@@ -353,7 +365,7 @@ def show_login_page():
             username = st.text_input("아이디", key="login_user")
             password = st.text_input("비밀번호", type="password", key="login_pw")
             
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+            # Primary 버튼 (로그인 버튼)에 새로운 딥 블루 색상 적용
             if st.form_submit_button("로그인", use_container_width=True, type="primary"):
                 success, msg = login(username, password)
                 if success:
@@ -367,8 +379,8 @@ def show_login_page():
         st.divider()
         st.markdown('<p style="color: #4A4A4A;">계정이 없으신가요? <strong>회원가입</strong>을 진행하세요.</p>', unsafe_allow_html=True)
         
-        # Secondary 버튼 스타일로 무채색 계열 유지
-        if st.button("회원가입하기", use_container_width=True, key="go_to_signup", type="secondary"):
+        # 회원가입 버튼도 Primary로 변경하여 딥 블루 색상 적용
+        if st.button("회원가입하기", use_container_width=True, key="go_to_signup", type="primary"):
             st.session_state.page = "signup"
             st.rerun()
 
@@ -405,7 +417,7 @@ def show_signup_page():
             email = st.text_input("이메일")
             student_id = st.text_input("학번")
 
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+            # Primary 버튼 (회원가입 완료 버튼)에 새로운 딥 블루 색상 적용
             if st.form_submit_button("회원가입 완료", use_container_width=True, type="primary"):
                 success, msg = signup(username, password, email, student_id)
                 if success:
@@ -428,7 +440,7 @@ def show_home_page():
 
     col_write, col_spacer = st.columns([1, 6])
     with col_write:
-        # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+        # Primary 버튼은 Deep Blue (#1D4ED8)로 자동 적용됨
         if st.button("✍️ 새 글 작성", use_container_width=True, type="primary"):
             st.session_state.page = "write"
             st.rerun()
@@ -440,6 +452,7 @@ def show_home_page():
         return
 
     # 게시글 목록 헤더 (항목 정렬을 위해 st.columns 사용)
+    # 조회수 항목을 넣기 위해 컬럼 비율 조정 (4:1.5:1:0.5 -> 3.5:1.5:1:0.5)
     header_col1, header_col2, header_col3, header_col4 = st.columns([4, 1.5, 1, 0.5])
     header_col1.markdown('**제목**', unsafe_allow_html=True)
     header_col2.markdown('<div style="text-align: center;">**작성자**</div>', unsafe_allow_html=True)
@@ -452,6 +465,7 @@ def show_home_page():
     
     # 게시글 목록 (클린하게 표시, 간격 최소화)
     for post in posts:
+        # get_all_posts는 (id, title, author, created_at, likes) 5개 컬럼만 가져옵니다.
         post_id, title, author, created_at, likes = post
         
         # 1. 컬럼 정의
@@ -475,7 +489,12 @@ def show_home_page():
 
 # ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
 def show_post_detail(post_id):
+    # 조회수 증가
+    increment_post_views(post_id)
+    
+    # 업데이트된 정보 다시 가져오기
     post = get_post_by_id(post_id)
+
     if not post:
         st.error("존재하지 않는 게시글입니다.")
         if st.button("목록으로 돌아가기"):
@@ -483,8 +502,8 @@ def show_post_detail(post_id):
             st.rerun()
         return
 
-    # 7개의 컬럼: id, title, content, author, real_author, created_at, likes
-    post_id, title, content, author, real_author, created_at, likes = post
+    # 8개의 컬럼: id, title, content, author, real_author, created_at, likes, views
+    post_id, title, content, author, real_author, created_at, likes, views = post
     username = st.session_state.username
 
     st.markdown(f'## {title}')
@@ -494,6 +513,19 @@ def show_post_detail(post_id):
     
     # 게시글 내용
     st.write(content)
+    
+    # ✅ 좋아요 및 조회수 표시 (게시물 내용 하단 왼쪽)
+    st.markdown(f"""
+    <div style="display: flex; gap: 20px; margin-top: 10px; margin-bottom: 20px;">
+        <span style="font-weight: 700; color: #4A4A4A;">
+            👁️ 조회수: {views}
+        </span>
+        <span style="font-weight: 700; color: #4A4A4A;">
+            🖤 좋아요: {likes}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.divider()
 
     col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
@@ -559,9 +591,9 @@ def show_post_detail(post_id):
         colA, colB = st.columns([3, 1])
         with colA:
             st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}", 
-                        help="익명으로 작성하면 작성자는 '익명'으로 표시됩니다.")
+                         help="익명으로 작성하면 작성자는 '익명'으로 표시됩니다.")
         with colB:
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+            # Primary 버튼 (등록 버튼)에 새로운 딥 블루 색상 적용
             if st.form_submit_button("등록", use_container_width=True, type="primary"):
                 if comment_text.strip():
                     add_comment(post_id, comment_text, st.session_state[f"anon_comment_{post_id}"])
@@ -582,7 +614,7 @@ def show_write_page():
         
         col1, col2 = st.columns(2)
         with col1:
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
+            # Primary 버튼 (등록 버튼)에 새로운 딥 블루 색상 적용
             if st.form_submit_button("등록", type="primary", use_container_width=True):
                 if title.strip() and content.strip():
                     create_post(title, content, anonymous)
