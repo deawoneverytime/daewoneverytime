@@ -131,19 +131,7 @@ def like_post(post_id, username):
     # 1. 좋아요 중복 확인
     c.execute("SELECT * FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
     if c.fetchone():
-        # 좋아요 기록이 있다면 -> 좋아요 취소
-        c.execute("UPDATE posts SET likes = likes - 1 WHERE id = ?", (post_id,))
-        c.execute("DELETE FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
-        conn.commit()
-        conn.close()
-        
-    else:
-        # 좋아요 기록이 없다면 -> 좋아요 추가
-        c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
-        c.execute("INSERT INTO likes (username, post_id, created_at) VALUES (?, ?, ?)",
-                  (username, post_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        conn.commit()
-        conn.close()
+       
        
 
 # ✅ 사용자가 해당 게시물에 좋아요를 눌렀는지 확인
