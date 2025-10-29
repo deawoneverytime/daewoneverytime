@@ -12,7 +12,7 @@ if 'STREAMLIT_SERVER_NAME' in os.environ:
     pass
 else:
     # 로컬 환경에서는 안전하게 경로를 설정합니다.
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    # os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ✅ 페이지 설정
@@ -58,6 +58,7 @@ STYLING = """
 }
 
 /* 게시글 목록의 버튼(제목) 스타일: 깔끔하고 명료하게 */
+/* 모바일 환경에서도 버튼이 텍스트를 감싸지 않고, 부모 요소의 전체 폭을 사용하도록 조정 */
 div[data-testid^="stColumn"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -68,7 +69,7 @@ div[data-testid^="stColumn"] div.stButton > button {
     padding: 5px 0 !important; /* 버튼 세로 간격 조정 */
     margin: 0 !important;
     cursor: pointer !important;
-    width: 100%;
+    width: 100%; /* 모바일/데스크톱 모두에서 100% 너비를 사용하여 정렬 유지 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -94,8 +95,16 @@ div[data-testid^="stHorizontalBlock"] {
 .metric-heart {
     font-size: 1.0em;
     font-weight: 700;
-    color: #4A4A4A; /* 빨간색 대신 무채색 Accent 적용 */
+    color: #4A4A4A; /* 무채색 Accent 적용 */
     padding: 5px 0; /* 목록 정렬을 위해 추가 */
+}
+
+/* 게시글 목록 메타데이터 스타일 (모바일에서 제목 아래에 표시될 정보) */
+.post-metadata {
+    font-size: 0.85em;
+    color: #888;
+    margin-top: -5px; /* 제목과의 간격 줄이기 */
+    margin-bottom: 5px;
 }
 
 /* 프로필 페이지 카드 스타일링 (내 정보 탭 디자인 개선) */
@@ -343,6 +352,7 @@ def go_to_detail(post_id):
 
 # ✅ 로그인 페이지
 def show_login_page():
+    # 모바일에서도 중앙에 깔끔하게 배치되도록 col1, col2, col3의 비율 유지
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown('<p class="main-title">🎓 대원타임</p>', unsafe_allow_html=True)
@@ -422,10 +432,11 @@ def show_signup_page():
     conn.close()
 
 
-# ✅ 게시판 목록 페이지 (클린 목록 표시 및 간격 좁게)
+# ✅ 게시판 목록 페이지 (모바일 반응형 개선)
 def show_home_page():
     st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
 
+    # 글쓰기 버튼
     col_write, col_spacer = st.columns([1, 6])
     with col_write:
         # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
@@ -439,37 +450,41 @@ def show_home_page():
         st.info("아직 게시글이 없습니다. 첫 글을 작성해보세요!")
         return
 
-    # 게시글 목록 헤더 (항목 정렬을 위해 st.columns 사용)
-    header_col1, header_col2, header_col3, header_col4 = st.columns([4, 1.5, 1, 0.5])
+    # ----------------------------------------------------------------------
+    # 게시글 목록 헤더 (반응형 2컬럼 구조)
+    # 제목(6)과 좋아요(1)만 표시하여 모바일에서 깔끔하게 유지
+    # ----------------------------------------------------------------------
+    header_col1, header_col2 = st.columns([6, 1])
     header_col1.markdown('**제목**', unsafe_allow_html=True)
-    header_col2.markdown('<div style="text-align: center;">**작성자**</div>', unsafe_allow_html=True)
-    header_col3.markdown('<div style="text-align: center;">**작성일**</div>', unsafe_allow_html=True)
     # 좋아요 아이콘과 텍스트를 무채색 계열로 변경
-    header_col4.markdown('<div style="text-align: right; color: #4A4A4A;">**🖤**</div>', unsafe_allow_html=True)
+    header_col2.markdown('<div style="text-align: right; color: #4A4A4A;">**🖤**</div>', unsafe_allow_html=True)
 
     # 얇은 구분선 (게시물 간격 시작)
     st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
 
-    # 게시글 목록 (클린하게 표시, 간격 최소화)
+    # 게시글 목록 (모바일 반응형을 위해 2컬럼 구조로 변경)
     for post in posts:
         post_id, title, author, created_at, likes = post
 
-        # 1. 컬럼 정의
-        col1, col2, col3, col4 = st.columns([4, 1.5, 1, 0.5])
+        # 1. 컬럼 정의: [제목/메타데이터], [좋아요 수]
+        col1, col2 = st.columns([6, 1])
 
-        # 2. 버튼 배치 (클릭 기능)
         with col1:
-            # 제목을 버튼으로 사용하여 클릭 가능하게 합니다. (CSS로 링크처럼 보이도록 했습니다)
+            # 2. 제목 버튼 배치 (클릭 기능)
             if st.button(title, key=f"post_title_{post_id}"):
                 go_to_detail(post_id)
 
-        # 3. 나머지 정보 표시 (정렬 및 간격 조절을 위해 st.markdown 사용)
-        col2.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{author}</div>', unsafe_allow_html=True)
-        col3.markdown(f'<div style="text-align: center; font-size: 0.9em; color: #666; padding: 5px 0;">{created_at[:10]}</div>', unsafe_allow_html=True)
-        # 좋아요 수: 무채색 Accent Color 적용
-        col4.markdown(f'<div style="text-align: right;" class="metric-heart">{likes}</div>', unsafe_allow_html=True)
+            # 3. 메타데이터 배치 (모바일에서 제목 아래에 깔끔하게 표시)
+            # author, created_at 정보를 제목 버튼 바로 아래에 작은 글씨로 표시합니다.
+            metadata_html = f'<p class="post-metadata">👤 {author} | 🗓️ {created_at[:10]}</p>'
+            st.markdown(metadata_html, unsafe_allow_html=True)
 
-        # 4. 구분선
+        # 4. 좋아요 수 표시
+        with col2:
+            # 좋아요 수: 무채색 Accent Color 적용, 세로 정렬을 위해 padding 조정
+            st.markdown(f'<div style="text-align: right;" class="metric-heart">{likes}</div>', unsafe_allow_html=True)
+
+        # 5. 구분선
         st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
 
 
@@ -496,6 +511,7 @@ def show_post_detail(post_id):
     st.write(content)
     st.divider()
 
+    # 버튼 3개를 모바일에서 잘 보이도록 3:1 비율로 배치 (모바일에서 자동으로 세로로 쌓임)
     col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
 
     # 좋아요 버튼
@@ -545,7 +561,7 @@ def show_post_detail(post_id):
                     <span style="font-weight: bold; color: #555;">👤 {c_author}</span>
                     <span style="font-size: 0.8em; color: #999;"> | {c_created}</span>
                 </p>
-                <p style="margin: 5px 0 0 15px; color: #333;">{c_content}</p>
+                <p style="margin: 5px 0 0 15px; color: #333; word-break: break-word;">{c_content}</p>
             </div>
             """, unsafe_allow_html=True)
     else:
@@ -556,6 +572,7 @@ def show_post_detail(post_id):
     with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
         comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
 
+        # 모바일에서도 버튼과 체크박스가 한 줄에 잘 보이도록 3:1 비율을 유지 (자동으로 쌓임)
         colA, colB = st.columns([3, 1])
         with colA:
             st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}",
@@ -580,6 +597,7 @@ def show_write_page():
         content = st.text_area("내용을 입력하세요", height=400)
         anonymous = st.checkbox("익명으로 작성 (작성자: 익명)")
 
+        # 모바일에서 버튼이 세로로 쌓여도 보기에 좋도록 2열 배치 유지
         col1, col2 = st.columns(2)
         with col1:
             # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
@@ -615,7 +633,7 @@ def show_profile_page():
         st.markdown(f'<h3 style="margin-top:0; color:#1E1E1E;">{username}님의 프로필</h3>', unsafe_allow_html=True)
         st.markdown('<hr style="border-top: 2px solid #eee;">', unsafe_allow_html=True)
 
-        # 2x2 그리드 레이아웃으로 정보 배치
+        # 2x2 그리드 레이아웃으로 정보 배치 (모바일에서는 자동으로 세로로 쌓여서 반응형이 됨)
         col1, col2 = st.columns(2)
 
         with col1:
