@@ -8,6 +8,12 @@ __pycache__/
 # C extensions
 *.so
 
+# .gitignore 파일에 추가
+*.db
+daewon_time.db
+__pycache__/
+.streamlit/
+
 # Distribution / packaging
 .Python
 build/
