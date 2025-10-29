@@ -1,730 +1,159 @@
-import sqlite3
 import streamlit as st
-import os
-import hashlib
-import re
-from datetime import datetime
+import time
 
-# Streamlit 앱 실행 환경에 맞게 현재 파일의 디렉토리를 작업 디렉토리로 설정
-# data.db 파일 경로 문제 방지
-if 'STREAMLIT_SERVER_NAME' in os.environ:
-    # Streamlit Cloud 환경에서는 os.chdir을 사용하지 않습니다.
-    pass
-else:
-    # 로컬 환경에서는 안전하게 경로를 설정합니다.
-    # os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-
-# ✅ 페이지 설정
+# 1. 페이지 설정 (Configuration)
+# 앱이 실행될 때 가장 먼저 설정되어야 합니다.
 st.set_page_config(page_title="대원타임", page_icon="🎓", layout="wide")
 
-# ✅ CSS 스타일링: 모던하고 깔끔한 무채색 계열 디자인
-# Accent Color: #4A4A4A (Dark Slate Gray - Monochromatic Accent)
-# Title Color: #1E1E1E (Dark Charcoal)
-STYLING = """
-<style>
-/* 배경색을 살짝 미색으로 변경 */
-.stApp {
-    background-color: #F9F9F9;
-}
+# 2. 세션 상태 초기화 (Initialize session state)
+# 'logged_in' 상태를 False로 초기화하여 처음에는 로그인 화면을 보여줍니다.
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = ""
 
-/* 메인 제목 스타일 */
-.main-title {
-    font-size: 3.5em;
-    font-weight: 900;
-    color: #1E1E1E; /* 진한 먹색 */
-    text-align: center;
-    margin-bottom: 25px;
-    letter-spacing: -1px; /* 촘촘한 느낌 */
-}
-
-/* 섹션 헤더 스타일: 모던한 좌측 라인 강조 */
-.sub-header {
-    font-size: 1.8em;
-    font-weight: 700;
-    color: #333333;
-    border-left: 5px solid #4A4A4A; /* 무채색 Accent */
-    padding-left: 10px;
-    padding-bottom: 5px;
-    margin-top: 30px;
-    margin-bottom: 15px;
-}
-
-/* 네이트판 스타일: 게시글 간격을 좁게 만드는 얇은 구분선 */
-.thin-divider {
-    margin: 0 !important;
-    border-top: 1px solid #EDEDED; /* 밝은 회색 선 */
-    opacity: 1;
-}
-
-/* 게시글 목록의 버튼(제목) 스타일: 깔끔하고 명료하게 */
-/* 모바일 환경에서도 버튼이 텍스트를 감싸지 않고, 부모 요소의 전체 폭을 사용하도록 조정 */
-div[data-testid^="stColumn"] div.stButton > button {
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    color: #333333 !important;
-    font-weight: 600 !important;
-    text-align: left !important;
-    padding: 5px 0 !important; /* 버튼 세로 간격 조정 */
-    margin: 0 !important;
-    cursor: pointer !important;
-    width: 100%; /* 모바일/데스크톱 모두에서 100% 너비를 사용하여 정렬 유지 */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.2s ease;
-}
-
-/* 제목 버튼 호버 시 스타일 */
-div[data-testid^="stColumn"] div.stButton > button:hover {
-    color: #4A4A4A !important; /* 무채색 Accent Hover */
-    text-decoration: none !important;
-    background-color: #F0F0F0 !important; /* 아주 연한 배경색 */
-}
-
-/* st.columns로 생성된 수평 블록의 세로 간격을 줄입니다. */
-div[data-testid^="stHorizontalBlock"] {
-    padding-top: 2px !important;
-    padding-bottom: 2px !important;
-    margin-top: 0px !important;
-    margin-bottom: 0px !important;
-}
-
-/* 좋아요 수 표시 스타일 (상세 페이지 & 목록) */
-.metric-heart {
-    font-size: 1.0em;
-    font-weight: 700;
-    color: #4A4A4A; /* 무채색 Accent 적용 */
-    padding: 5px 0; /* 목록 정렬을 위해 추가 */
-}
-
-/* 게시글 목록 메타데이터 스타일 (모바일에서 제목 아래에 표시될 정보) */
-.post-metadata {
-    font-size: 0.85em;
-    color: #888;
-    margin-top: -5px; /* 제목과의 간격 줄이기 */
-    margin-bottom: 5px;
-}
-
-/* 프로필 페이지 카드 스타일링 (내 정보 탭 디자인 개선) */
-.profile-card {
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* 부드러운 그림자 */
-    background-color: #FFFFFF;
-    margin-bottom: 20px;
-}
-.profile-label {
-    font-weight: 500;
-    color: #4A4A4A; /* 라벨에 Accent Color 적용 */
-    font-size: 1.1em;
-    margin-bottom: 5px;
-}
-.profile-value {
-    font-weight: 700;
-    color: #333333;
-    font-size: 1.5em;
-    margin-bottom: 20px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
-}
-
-/* Primary 버튼 스타일 (Accent Color 적용) */
-.stButton button[data-testid="baseButton-primary"] {
-    background-color: #4A4A4A !important;
-    border-color: #4A4A4A !important;
-    color: white !important;
-}
-.stButton button[data-testid="baseButton-primary"]:hover {
-    background-color: #333333 !important; /* Darker on hover */
-    border-color: #333333 !important;
-}
-
-/* Secondary 버튼 스타일 */
-.stButton button[data-testid="baseButton-secondary"] {
-    color: #4A4A4A !important; /* 텍스트 색상을 Accent Color로 */
-    border-color: #E0E0E0 !important;
-}
-.stButton button[data-testid="baseButton-secondary"]:hover {
-    background-color: #F0F0F0 !important;
-    border-color: #D0D0D0 !important;
-}
-
-/* Streamlit 기본 Info/Success/Error 메시지 색상 조정 (배경은 못 바꾸지만 텍스트는 짙은 색으로) */
-div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] p {
-    color: #1E1E1E !important;
-    font-weight: 600;
-}
-
-/* 사이드바 헤더 색상 */
-.sidebar-header {
-    font-size: 1.5em;
-    font-weight: 700;
-    color:#1E1E1E; /* 진한 먹색 */
-}
-
-/* 상세 페이지 좋아요 카운트 (빨간색 제거) */
-.post-likes-count {
-    font-size: 1.0em;
-    font-weight: 700;
-    color: #4A4A4A;
-}
-
-</style>
-"""
-st.markdown(STYLING, unsafe_allow_html=True)
-
-
-# ✅ 이메일 & 비밀번호 정규식: 데이터 유효성 검사
-EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
-
-# ✅ DB 초기화: 필요한 테이블 생성
-def init_db():
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT,
-        email TEXT UNIQUE,
-        student_id TEXT,
-        created_at TEXT
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS posts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        content TEXT,
-        author TEXT,               -- 화면에 표시되는 작성자 (익명 또는 아이디)
-        real_author TEXT,          -- 실제 작성자 (아이디, 삭제 권한 확인용)
-        created_at TEXT,
-        likes INTEGER DEFAULT 0
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS comments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        post_id INTEGER,
-        author TEXT,
-        real_author TEXT,
-        content TEXT,
-        created_at TEXT,
-        FOREIGN KEY(post_id) REFERENCES posts(id)
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS likes (
-        username TEXT,
-        post_id INTEGER,
-        created_at TEXT,
-        PRIMARY KEY (username, post_id),
-        FOREIGN KEY(post_id) REFERENCES posts(id)
-    )''')
-
-    conn.commit()
-    conn.close()
-
-# ✅ 비밀번호 해싱 (보안)
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-# ✅ 사용자 정의 DB 함수
-
-def get_post_by_id(post_id):
-    """특정 ID의 게시글을 가져옵니다. (컬럼 명시)"""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT id, title, content, author, real_author, created_at, likes FROM posts WHERE id = ?", (post_id,))
-    post = c.fetchone()
-    conn.close()
-    # 컬럼이 7개이므로 7개를 반환합니다: (id, title, content, author, real_author, created_at, likes)
-    return post
-
-def login(username, password):
-    """로그인 처리."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT password FROM users WHERE username = ?", (username,))
-    row = c.fetchone()
-    conn.close()
-    if not row or row[0] != hash_password(password):
-        return False, "아이디 또는 비밀번호가 일치하지 않습니다."
-    st.session_state.logged_in = True
-    st.session_state.username = username
-    return True, "로그인 성공!"
-
-def like_post(post_id, username):
-    """좋아요 토글 (메시지 없음)."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
-
-    if c.fetchone():
-        # 좋아요 취소
-        c.execute("UPDATE posts SET likes = likes - 1 WHERE id = ?", (post_id,))
-        c.execute("DELETE FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
+# 3. 주요 함수 정의: 로그인 처리
+def login_attempt(username, password):
+    # 실제 환경에서는 데이터베이스 또는 인증 시스템을 사용해야 합니다.
+    # 여기서는 임시로 'daewon'/'1234'를 성공 조건으로 설정합니다.
+    if username == "daewon" and password == "1234":
+        st.session_state.logged_in = True
+        st.session_state.user_name = "대원고 학생" # 실제 이름으로 변경 가능
+        st.success(f"로그인 성공! 환영합니다, {st.session_state.user_name}님.")
+        # 성공 메시지 후 잠시 멈췄다가 새로고침하여 메인 페이지로 이동 (Streamlit 특성상 필요)
+        time.sleep(0.5)
+        st.experimental_rerun()
     else:
-        # 좋아요 추가
-        c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
-        c.execute("INSERT INTO likes (username, post_id, created_at) VALUES (?, ?, ?)",
-                  (username, post_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
-    conn.commit()
-    conn.close()
-    return True
-
-def has_user_liked(post_id, username):
-    """사용자가 좋아요를 눌렀는지 확인."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM likes WHERE post_id = ? AND username = ?", (post_id, username))
-    liked = c.fetchone() is not None
-    conn.close()
-    return liked
-
-def create_post(title, content, is_anonymous=False):
-    """게시글 작성."""
-    author = "익명" if is_anonymous else st.session_state.username
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute('''INSERT INTO posts (title, content, author, real_author, created_at)
-                  VALUES (?, ?, ?, ?, ?)''',
-              (title, content, author, st.session_state.username,
-               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
-
-def get_all_posts():
-    """모든 게시글을 최신순으로 가져오기."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    # id, title, author, created_at, likes 순서로 5개 컬럼을 가져옵니다.
-    c.execute("SELECT id, title, author, created_at, likes FROM posts ORDER BY id DESC")
-    posts = c.fetchall()
-    conn.close()
-    return posts
-
-def delete_post(post_id):
-    """게시글 및 관련 댓글, 좋아요 기록 삭제."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT real_author FROM posts WHERE id = ?", (post_id,))
-    author = c.fetchone()
-    if author and author[0] == st.session_state.username:
-        c.execute("DELETE FROM comments WHERE post_id = ?", (post_id,))
-        c.execute("DELETE FROM likes WHERE post_id = ?", (post_id,))
-        c.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-        conn.commit()
-        conn.close()
-        return True
-    conn.close()
-    return False
-
-def add_comment(post_id, content, is_anonymous=False):
-    """댓글 추가."""
-    author = "익명" if is_anonymous else st.session_state.username
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute('''INSERT INTO comments (post_id, author, real_author, content, created_at)
-                  VALUES (?, ?, ?, ?, ?)''',
-              (post_id, author, st.session_state.username, content,
-               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
-
-def get_comments(post_id):
-    """특정 게시글의 댓글 가져오기."""
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-    c.execute("SELECT author, content, created_at FROM comments WHERE post_id = ? ORDER BY id ASC", (post_id,))
-    comments = c.fetchall()
-    conn.close()
-    return comments
-
-
-# --- 페이지 함수 ---
-
-def go_to_detail(post_id):
-    """게시글 상세 페이지로 이동하며 ID 저장."""
-    st.session_state.page = "detail"
-    st.session_state.selected_post_id = post_id
-    st.rerun()
-
-# ✅ 로그인 페이지
-def show_login_page():
-    # 모바일에서도 중앙에 깔끔하게 배치되도록 col1, col2, col3의 비율 유지
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown('<p class="main-title">🎓 대원타임</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-header">로그인</p>', unsafe_allow_html=True)
-
-        with st.form("login_form"):
-            # 텍스트 색상을 기본 무채색(검정)으로 유지
-            username = st.text_input("아이디", key="login_user")
-            password = st.text_input("비밀번호", type="password", key="login_pw")
-
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
-            if st.form_submit_button("로그인", use_container_width=True, type="primary"):
-                success, msg = login(username, password)
-                if success:
-                    st.success(msg)
-                    st.balloons()
-                    st.session_state.page = "home"
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-        st.divider()
-        st.markdown('<p style="color: #4A4A4A;">계정이 없으신가요? <strong>회원가입</strong>을 진행하세요.</p>', unsafe_allow_html=True)
-
-        # Secondary 버튼 스타일로 무채색 계열 유지
-        if st.button("회원가입하기", use_container_width=True, key="go_to_signup", type="secondary"):
-            st.session_state.page = "signup"
-            st.rerun()
-
-# ✅ 회원가입 페이지
-def show_signup_page():
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-
-    def signup(username, password, email, student_id):
-        # 아이디, 학번은 빈 문자열이 아니어야 함
-        if not username.strip() or not student_id.strip():
-            return False, "아이디와 학번은 필수 입력 사항입니다."
-
-        if not re.match(EMAIL_REGEX, email) or not re.match(PASSWORD_REGEX, password):
-            return False, "입력 형식을 확인하세요. 비밀번호는 8자 이상, 대/소문자/숫자 포함해야 합니다."
-        try:
-            c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", (
-                username, hash_password(password), email, student_id,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ))
-            conn.commit()
-            return True, "회원가입이 완료되었습니다!"
-        except sqlite3.IntegrityError:
-            return False, "이미 존재하는 아이디 또는 이메일입니다."
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown('<p class="main-title">🎓 대원타임</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-header">회원가입</p>', unsafe_allow_html=True)
-
-        with st.form("signup_form"):
-            username = st.text_input("아이디")
-            password = st.text_input("비밀번호", type="password", help="8자 이상, 대/소문자/숫자 포함")
-            email = st.text_input("이메일")
-            student_id = st.text_input("학번")
-
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
-            if st.form_submit_button("회원가입 완료", use_container_width=True, type="primary"):
-                success, msg = signup(username, password, email, student_id)
-                if success:
-                    st.success(msg)
-                    st.session_state.page = "login"
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-        st.divider()
-        if st.button("로그인 페이지로 돌아가기", use_container_width=True, type="secondary"):
-            st.session_state.page = "login"
-            st.rerun()
-    conn.close()
-
-
-# ✅ 게시판 목록 페이지 (모바일 반응형 개선)
-def show_home_page():
-    st.markdown('<p class="sub-header">📋 자유게시판</p>', unsafe_allow_html=True)
-
-    # 글쓰기 버튼
-    col_write, col_spacer = st.columns([1, 6])
-    with col_write:
-        # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
-        if st.button("✍️ 새 글 작성", use_container_width=True, type="primary"):
-            st.session_state.page = "write"
-            st.rerun()
-    st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True) # 공간 확보
-
-    posts = get_all_posts()
-    if not posts:
-        st.info("아직 게시글이 없습니다. 첫 글을 작성해보세요!")
-        return
-
-    # ----------------------------------------------------------------------
-    # 게시글 목록 헤더 (반응형 2컬럼 구조)
-    # 제목(6)과 좋아요(1)만 표시하여 모바일에서 깔끔하게 유지
-    # ----------------------------------------------------------------------
-    header_col1, header_col2 = st.columns([6, 1])
-    header_col1.markdown('**제목**', unsafe_allow_html=True)
-    # 좋아요 아이콘과 텍스트를 무채색 계열로 변경
-    header_col2.markdown('<div style="text-align: right; color: #4A4A4A;">**🖤**</div>', unsafe_allow_html=True)
-
-    # 얇은 구분선 (게시물 간격 시작)
-    st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
-
-    # 게시글 목록 (모바일 반응형을 위해 2컬럼 구조로 변경)
-    for post in posts:
-        post_id, title, author, created_at, likes = post
-
-        # 1. 컬럼 정의: [제목/메타데이터], [좋아요 수]
-        col1, col2 = st.columns([6, 1])
-
-        with col1:
-            # 2. 제목 버튼 배치 (클릭 기능)
-            if st.button(title, key=f"post_title_{post_id}"):
-                go_to_detail(post_id)
-
-            # 3. 메타데이터 배치 (모바일에서 제목 아래에 깔끔하게 표시)
-            # author, created_at 정보를 제목 버튼 바로 아래에 작은 글씨로 표시합니다.
-            metadata_html = f'<p class="post-metadata">👤 {author} | 🗓️ {created_at[:10]}</p>'
-            st.markdown(metadata_html, unsafe_allow_html=True)
-
-        # 4. 좋아요 수 표시
-        with col2:
-            # 좋아요 수: 무채색 Accent Color 적용, 세로 정렬을 위해 padding 조정
-            st.markdown(f'<div style="text-align: right;" class="metric-heart">{likes}</div>', unsafe_allow_html=True)
-
-        # 5. 구분선
-        st.markdown('<div class="thin-divider"></div>', unsafe_allow_html=True)
-
-
-# ✅ 게시글 상세 페이지 (내용, 좋아요, 댓글 기능)
-def show_post_detail(post_id):
-    post = get_post_by_id(post_id)
-    if not post:
-        st.error("존재하지 않는 게시글입니다.")
-        if st.button("목록으로 돌아가기"):
-            st.session_state.page = "home"
-            st.rerun()
-        return
-
-    # 7개의 컬럼: id, title, content, author, real_author, created_at, likes
-    post_id, title, content, author, real_author, created_at, likes = post
-    username = st.session_state.username
-
-    st.markdown(f'## {title}')
-    # 좋아요 카운트 색상을 무채색 Accent Color로 변경
-    st.caption(f"**작성자:** {author} | **작성일:** {created_at} | <span class='post-likes-count'>🖤 {likes}</span>", unsafe_allow_html=True)
-    st.divider()
-
-    # 게시글 내용
-    st.write(content)
-    st.divider()
-
-    # 버튼 3개를 모바일에서 잘 보이도록 3:1 비율로 배치 (모바일에서 자동으로 세로로 쌓임)
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
-
-    # 좋아요 버튼
-    with col1:
-        is_liked = has_user_liked(post_id, username)
-        # 하트 아이콘 색상도 무채색으로 통일: 꽉 찬 하트 🖤, 빈 하트 🤍
-        like_label = "🖤 좋아요 취소" if is_liked else "🤍 좋아요"
-        # Secondary 버튼 스타일로 무채색 계열 유지
-        if st.button(like_label, key=f"detail_like_{post_id}", use_container_width=True, type="secondary"):
-            like_post(post_id, username)
-            st.rerun()
-
-    # 삭제 버튼 (작성자에게만)
-    with col2:
-        if real_author == username:
-            # Secondary 버튼 스타일로 무채색 계열 유지
-            if st.button("🗑️ 삭제", key=f"detail_del_{post_id}", type="secondary", use_container_width=True):
-                # Custom confirmation logic would go here if not in a sandboxed environment
-                if delete_post(post_id):
-                    st.success("게시글이 삭제되었습니다.")
-                    st.session_state.page = "home"
-                    st.rerun()
-                else:
-                    st.error("삭제 권한이 없습니다.")
-
-    # 목록으로 버튼
-    with col3:
-        # Secondary 버튼 스타일로 무채색 계열 유지
-        if st.button("🔙 목록으로", key=f"detail_back_{post_id}", use_container_width=True, type="secondary"):
-            st.session_state.page = "home"
-            st.rerun()
-
-    st.divider()
-
-    # ✅ 댓글 섹션
-    st.markdown('### 💬 댓글')
-    comments = get_comments(post_id)
-
-    # 댓글 목록 표시
-    if comments:
-        for c in comments:
-            c_author, c_content, c_created = c
-            # 댓글 표시 형식 개선
-            st.markdown(f"""
-            <div style="padding: 10px 0; border-bottom: 1px solid #eee;">
-                <p style="margin: 0;">
-                    <span style="font-weight: bold; color: #555;">👤 {c_author}</span>
-                    <span style="font-size: 0.8em; color: #999;"> | {c_created}</span>
-                </p>
-                <p style="margin: 5px 0 0 15px; color: #333; word-break: break-word;">{c_content}</p>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("아직 댓글이 없습니다.")
-
-    st.markdown('<h4 style="margin-top: 20px; color: #555;">댓글 작성</h4>', unsafe_allow_html=True)
-    # 댓글 작성 폼
-    with st.form(key=f"comment_form_{post_id}", clear_on_submit=True):
-        comment_text = st.text_area("댓글 내용을 입력하세요", key=f"comment_box_{post_id}", height=80, label_visibility="collapsed")
-
-        # 모바일에서도 버튼과 체크박스가 한 줄에 잘 보이도록 3:1 비율을 유지 (자동으로 쌓임)
-        colA, colB = st.columns([3, 1])
-        with colA:
-            st.checkbox("익명으로 작성", key=f"anon_comment_{post_id}",
-                        help="익명으로 작성하면 작성자는 '익명'으로 표시됩니다.")
-        with colB:
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
-            if st.form_submit_button("등록", use_container_width=True, type="primary"):
-                if comment_text.strip():
-                    add_comment(post_id, comment_text, st.session_state[f"anon_comment_{post_id}"])
-                    st.success("댓글이 등록되었습니다.")
-                    st.rerun()
-                else:
-                    st.warning("댓글 내용을 입력하세요.")
-
-
-# ✅ 글쓰기 페이지
-def show_write_page():
-    st.markdown('<p class="sub-header">✍️ 새 글 작성</p>', unsafe_allow_html=True)
-
-    with st.form("write_post_form", clear_on_submit=True):
-        title = st.text_input("제목을 입력하세요")
-        content = st.text_area("내용을 입력하세요", height=400)
-        anonymous = st.checkbox("익명으로 작성 (작성자: 익명)")
-
-        # 모바일에서 버튼이 세로로 쌓여도 보기에 좋도록 2열 배치 유지
-        col1, col2 = st.columns(2)
-        with col1:
-            # Primary 버튼은 Accent Color (#4A4A4A)로 자동 적용됨
-            if st.form_submit_button("등록", type="primary", use_container_width=True):
-                if title.strip() and content.strip():
-                    create_post(title, content, anonymous)
-                    st.success("게시글이 성공적으로 작성되었습니다!")
-                    st.session_state.page = "home"
-                    st.rerun()
-                else:
-                    st.error("제목과 내용을 모두 입력해주세요.")
-        with col2:
-            # Secondary 버튼 스타일로 무채색 계열 유지
-            if st.form_submit_button("취소", use_container_width=True, type="secondary"):
-                st.session_state.page = "home"
-                st.rerun()
-
-# ✅ 프로필 페이지 (디자인 개선)
-def show_profile_page():
-    st.markdown('<p class="sub-header">👤 내 정보</p>', unsafe_allow_html=True)
-    conn = sqlite3.connect("data.db")
-    c = conn.cursor()
-
-    c.execute("SELECT username, password, email, student_id, created_at FROM users WHERE username = ?", (st.session_state.username,))
-    user = c.fetchone()
-    conn.close()
-
-    if user:
-        username, _, email, student_id, created = user
-
-        # 새로운 카드 디자인 적용
-        st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 style="margin-top:0; color:#1E1E1E;">{username}님의 프로필</h3>', unsafe_allow_html=True)
-        st.markdown('<hr style="border-top: 2px solid #eee;">', unsafe_allow_html=True)
-
-        # 2x2 그리드 레이아웃으로 정보 배치 (모바일에서는 자동으로 세로로 쌓여서 반응형이 됨)
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown(f'<div class="profile-label">아이디</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="profile-value">{username}</div>', unsafe_allow_html=True)
-
-            st.markdown(f'<div class="profile-label">학번</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="profile-value">{student_id}</div>', unsafe_allow_html=True)
-
-        with col2:
-            st.markdown(f'<div class="profile-label">이메일</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="profile-value">{email}</div>', unsafe_allow_html=True)
-
-            st.markdown(f'<div class="profile-label">가입일</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="profile-value">{created}</div>', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True) # End profile-card
-
-    else:
-        st.error("사용자 정보를 불러올 수 없습니다.")
-        if st.button("홈으로 돌아가기", key="profile_error_back"):
-            st.session_state.page = "home"
-            st.rerun()
-
-# ✅ 메인 실행
-def main():
-    init_db()
-
-    # 세션 상태 초기화
-    if 'logged_in' not in st.session_state:
+        st.error("로그인 실패: 사용자 이름 또는 비밀번호가 잘못되었습니다.")
         st.session_state.logged_in = False
-        st.session_state.username = None
-        st.session_state.page = "login"
-        st.session_state.selected_post_id = None # 상세 페이지로 이동할 때 사용할 ID
+        st.session_state.user_name = ""
 
-    # 사이드바 (내비게이션)
+# 4. 주요 함수 정의: 로그아웃 처리
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.user_name = ""
+    st.info("로그아웃 되었습니다.")
+    time.sleep(0.5)
+    st.experimental_rerun()
+
+
+# --- 메인 애플리케이션 로직 시작 ---
+
+# A. 로그인 상태에 따른 화면 분기
+if st.session_state.logged_in:
+    # --- 로그인 성공 시 메인 화면 ---
+    
+    # 사이드바에 사용자 정보 및 로그아웃 버튼 표시
     with st.sidebar:
-        # 사이드바 헤더 색상을 진한 먹색 (#1E1E1E)으로 변경
-        st.markdown('<p class="sidebar-header">🎓 대원 커뮤니티</p>', unsafe_allow_html=True)
-        st.divider()
+        st.success(f"안녕하세요, {st.session_state.user_name}님!")
+        if st.button("로그아웃", use_container_width=True):
+            logout()
+        st.markdown("---")
+        st.header("앱 탐색 메뉴")
+        # 메뉴 이름에 영어 설명을 추가하여 명확성을 높였습니다.
+        menu = st.radio("메뉴 선택", ["시간표 (Timetable)", "급식 정보 (Meal Info)", "게시판 (Board)"])
+    
+    st.title("🎓 대원타임 메인 페이지")
+    
+    # 컨텐츠 영역
+    if menu == "시간표 (Timetable)":
+        st.subheader("🗓️ 나의 시간표")
+        st.info("개인 시간표를 확인하거나 수정할 수 있습니다.")
 
-        if st.session_state.logged_in:
-            # 성공 메시지의 텍스트 색상은 CSS에서 조정했지만, 기본적으로 st.success를 사용
-            st.success(f"**{st.session_state.username}**님 환영합니다!")
+        # 시간표 입력/보기 섹션을 2단으로 구성
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("#### 시간표 입력/설정")
+            grade = st.selectbox("학년", [1, 2, 3])
+            class_num = st.selectbox("반", list(range(1, 15)))
+            
+            # 사용자에게 시간표를 입력받는 예시
+            st.markdown("##### 1교시 수업 입력")
+            # 입력된 값이 동적으로 시간표에 반영되도록 합니다.
+            first_period = st.text_input(f"월요일 1교시 ({grade}학년 {class_num}반)", value="국어")
+            if st.button("시간표 저장"):
+                st.toast("시간표가 성공적으로 저장되었습니다!", icon='✅')
 
-            # 메뉴 버튼 (Secondary 버튼 스타일로 무채색 계열 유지)
-            if st.button("🏠 홈 (게시판)", use_container_width=True, type="secondary"):
-                st.session_state.page = "home"
-                st.rerun()
-            if st.button("✍️ 글쓰기", use_container_width=True, type="secondary"):
-                st.session_state.page = "write"
-                st.rerun()
-            if st.button("👤 내 정보", use_container_width=True, type="secondary"):
-                st.session_state.page = "profile"
-                st.rerun()
-
-            st.divider()
-            # 로그아웃 버튼 (Secondary 버튼 스타일로 무채색 계열 유지)
-            if st.button("🚪 로그아웃", use_container_width=True, type="secondary"):
-                st.session_state.logged_in = False
-                st.session_state.username = None
-                st.session_state.page = "login"
-                st.session_state.selected_post_id = None
-                st.rerun()
-        else:
-            # 비로그인 상태일 때: 로그인/회원가입 페이지 외에는 접근할 수 없음
-            # 텍스트 색상을 #4A4A4A로 설정
-            st.markdown('<p style="color: #4A4A4A; font-weight: 600;">로그인이 필요합니다.</p>', unsafe_allow_html=True)
-
-    # 페이지 라우팅
-    if st.session_state.page == "login":
-        show_login_page()
-    elif st.session_state.page == "signup":
-        show_signup_page()
-    elif st.session_state.logged_in:
-        if st.session_state.page == "home":
-            show_home_page()
-        elif st.session_state.page == "write":
-            show_write_page()
-        elif st.session_state.page == "profile":
-            show_profile_page()
-        elif st.session_state.page == "detail" and st.session_state.selected_post_id is not None:
-            show_post_detail(st.session_state.selected_post_id)
-        else:
-            # 기본적으로 홈 페이지로 리다이렉트
-            st.session_state.page = "home"
-            st.rerun()
-    else:
-        # 로그인되지 않은 상태에서 다른 페이지로 이동 시도 시 로그인 페이지로
-        show_login_page()
+        with col2:
+            st.markdown("#### 저장된 시간표 미리보기")
+            # 데이터프레임 예시 (실제 데이터는 저장된 값으로 대체)
+            st.dataframe({
+                "교시": [1, 2, 3, 4, 5, 6, 7],
+                "월": [first_period, "영어", "과학", "점심", "국어", "역사", "자율"],
+                "화": ["체육", "수학", "미술", "점심", "영어", "과학", "동아리"],
+                "수": ["미술", "음악", "기술", "점심", "일본어", "수학", "진로"],
+                "목": ["물리", "지리", "화학", "점심", "국어", "영어", "사회"],
+                "금": ["미술", "음악", "기술", "점심", "일본어", "수학", "진로"],
+            }, use_container_width=True)
 
 
-if __name__ == "__main__":
-    main()
+    elif menu == "급식 정보 (Meal Info)":
+        st.subheader("🍚 오늘의 급식 정보")
+        
+        # 오늘 날짜 (임시)
+        today = time.strftime("%Y년 %m월 %d일")
+        st.metric("오늘 날짜", today)
+        
+        # 급식 메뉴 상세 정보 (expander 활용하여 깔끔하게 정리)
+        with st.expander("**[2025.01.01 수요일] 급식 메뉴 상세 보기**", expanded=True):
+            st.markdown("""
+            - **점심 메뉴:** 찰현미밥, 된장찌개, 불고기, 잡채, 배추김치
+            - **영양 정보:** (칼로리: 850kcal, 단백질: 45g, 지방: 30g)
+            - **알레르기:** 소고기(불고기), 돼지고기(잡채), 밀(된장찌개) 포함
+            """)
+        
+        # 주간 급식표 (임시 데이터)
+        st.markdown("---")
+        st.markdown("#### 이번 주 급식 미리보기")
+        st.text("""
+        월: 닭갈비 덮밥, 콩나물국
+        화: 돈까스, 스프, 깍두기
+        수: 비빔밥, 계란국
+        목: 짜장면, 탕수육
+        금: 카레라이스, 샐러드
+        """)
+
+
+    elif menu == "게시판 (Board)":
+        st.subheader("💬 자유 게시판")
+        st.success("학생들이 정보를 공유하고 소통하는 공간입니다.")
+        
+        # 임시 게시판 목록을 표 형태로 표시
+        posts = [
+            {"id": 1, "제목": "시험 기간 자습실 이용 안내", "작성자": "관리자", "날짜": "2025-10-28"},
+            {"id": 2, "제목": "수학 동아리 모집 공고", "작성자": "수학사랑", "날짜": "2025-10-27"},
+            {"id": 3, "제목": "주말에 같이 공부할 친구 구해요", "작성자": "스터디원", "날짜": "2025-10-26"},
+        ]
+        
+        st.table(posts)
+        st.button("새 글 작성", key="new_post_btn")
+
+    # 앱의 맨 마지막에 푸터 등을 추가할 수 있습니다.
+    st.markdown("---")
+    st.caption("© 2024 대원타임 - 대원고등학교 학생용 앱")
+
+else:
+    # --- 로그인 실패 또는 미로그인 시 로그인 화면 ---
+    st.title("🔒 대원타임 - 로그인")
+    st.markdown("---")
+    
+    # 중앙 정렬 및 폼 크기 조정을 위한 컬럼 사용
+    col_empty, col_form, col_empty2 = st.columns([1, 1.5, 1])
+    
+    with col_form:
+        st.subheader("계정 정보를 입력해주세요.")
+        
+        with st.form(key='login_form'):
+            username = st.text_input("사용자 이름 (ID)", placeholder="daewon")
+            password = st.text_input("비밀번호", type="password", placeholder="1234")
+            
+            # 폼 제출 버튼
+            submit_button = st.form_submit_button(label='로그인', use_container_width=True)
+            
+            # 폼 제출 시 로그인 시도
+            if submit_button:
+                login_attempt(username, password)
+    
+    st.markdown("---")
+    st.caption("테스트 계정: ID 'daewon', PW '1234'")
