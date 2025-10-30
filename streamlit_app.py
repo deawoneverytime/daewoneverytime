@@ -15,7 +15,7 @@ def init_db():
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
 
-    # 사용자 테이블 (school 컬럼 추가)
+    # 사용자 테이블 (school 컬럼 포함하여 생성)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT,
@@ -24,6 +24,14 @@ def init_db():
         created_at TEXT,
         school TEXT
     )''')
+
+    # 💡 DB 마이그레이션 체크: school 컬럼이 기존 테이블에 없을 경우 추가
+    try:
+        # school 컬럼을 조회해 봅니다.
+        c.execute("SELECT school FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        # 조회 실패 시 (school 컬럼이 없을 시) 컬럼을 추가합니다.
+        c.execute("ALTER TABLE users ADD COLUMN school TEXT")
 
     # 게시글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
@@ -56,12 +64,12 @@ def hash_password(password):
 
 # ✅ 학교 정보 및 스타일 가져오기
 def get_school_style(school_code):
-    if school_code == "대원여고":
+    if school_code == "여고":
         # Hot Pink
         return "대원여고", "#FF69B4"
-    elif school_code == "대원고":
+    elif school_code == "남고":
         # Dodger Blue
-        return "대원고", "#1E90FF"
+        return "대원남고", "#1E90FF"
     # Fallback
     return "학교 정보 없음", "#808080"
 
@@ -72,7 +80,8 @@ def get_user_school(username):
     c.execute("SELECT school FROM users WHERE username = ?", (username,))
     school = c.fetchone()
     conn.close()
-    return school[0] if school else None
+    # 💡 수정: school이 None일 경우 에러 방지 (예: 마이그레이션으로 추가되었지만 값이 비어있는 경우)
+    return school[0] if school and school[0] is not None else "여고" # 기본값을 여고로 설정
 
 # ✅ 회원가입 (school 추가)
 def signup(username, password, email, student_id, school):
@@ -183,7 +192,7 @@ def get_comments(post_id):
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🎓 대원 에브리타임")
+        st.title("🎓 대원대학교 에브리타임")
         st.subheader("로그인 / 회원가입")
 
         tab1, tab2 = st.tabs(["로그인", "회원가입"])
@@ -210,7 +219,7 @@ def show_login_page():
             # 학교 선택 UI 추가
             school = st.radio(
                 "학교 선택",
-                ["대원여고", "대원고"],
+                ["여고", "남고"],
                 index=0,
                 key="signup_school",
                 horizontal=True
@@ -417,6 +426,4 @@ def main():
             show_profile_page()
 
 if __name__ == "__main__":
-    # 데이터베이스 파일이 존재하지 않는 경우 초기화 시 새로운 스키마가 적용됩니다.
-    # 만약 이전에 'data.db' 파일이 존재했다면, 수동으로 파일을 삭제하고 다시 실행해야 'school' 컬럼이 적용됩니다.
     main()
