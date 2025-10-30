@@ -189,20 +189,29 @@ DB_PATH = "daewon_time.db"
 EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
 
-# ✅ DB 초기화
+# ✅ DB 초기화 (school 컬럼 추가 및 마이그레이션 로직 포함)
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # 사용자 테이블
+    # 사용자 테이블 (school 컬럼 추가)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         student_id TEXT NOT NULL,
+        school TEXT NOT NULL DEFAULT '대원고', 
         created_at TEXT NOT NULL
     )''')
     
+    # 마이그레이션: 기존 테이블에 school 컬럼이 없는 경우 추가
+    try:
+        # school 컬럼이 있는지 확인
+        c.execute("SELECT school FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        # school 컬럼이 없으면 추가 (기존 사용자에게는 기본값 '대원고' 부여)
+        c.execute("ALTER TABLE users ADD COLUMN school TEXT NOT NULL DEFAULT '대원고'")
+
     # 게시글 테이블
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -241,10 +250,10 @@ def init_db():
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ✅ 회원가입
-def signup_user(username, password, email, student_id):
-    if not username.strip() or not student_id.strip():
-        return False, "아이디와 학번은 필수 입력 사항입니다."
+# ✅ 회원가입 (school 파라미터 추가)
+def signup_user(username, password, email, student_id, school):
+    if not username.strip() or not student_id.strip() or not school.strip() or school == "--- 선택 ---":
+        return False, "아이디, 학번, 학교는 필수 입력 사항입니다."
     
     if not re.match(EMAIL_REGEX, email):
         return False, "올바른 이메일 형식이 아닙니다."
@@ -255,8 +264,9 @@ def signup_user(username, password, email, student_id):
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", 
-                  (username, hash_password(password), email, student_id,
+        # school 컬럼 추가에 따라 ?의 개수 6개로 변경
+        c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?)", 
+                  (username, hash_password(password), email, student_id, school,
                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
         conn.close()
@@ -277,13 +287,15 @@ def login_user(username, password):
     
     return True, "로그인 성공!"
 
-# ✅ 사용자 정보 가져오기
+# ✅ 사용자 정보 가져오기 (school 필드 추가)
 def get_user_info(username):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT username, email, student_id, created_at FROM users WHERE username = ?", (username,))
+    # school 컬럼 추가
+    c.execute("SELECT username, email, student_id, school, created_at FROM users WHERE username = ?", (username,))
     user = c.fetchone()
     conn.close()
+    # 반환되는 튜플: (username, email, student_id, school, created_at)
     return user
 
 # ✅ 게시글 작성
@@ -292,7 +304,7 @@ def create_post(title, content, username, is_anonymous=False):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''INSERT INTO posts (title, content, author, real_author, created_at, likes)
-                 VALUES (?, ?, ?, ?, ?, 0)''',
+              VALUES (?, ?, ?, ?, ?, 0)''',
               (title, content, author, username, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
@@ -365,7 +377,7 @@ def add_comment(post_id, content, username, is_anonymous=False):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''INSERT INTO comments (post_id, author, real_author, content, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
+              VALUES (?, ?, ?, ?, ?)''',
               (post_id, author, username, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
@@ -411,7 +423,7 @@ def show_login_page():
                 else:
                     st.error(msg)
 
-# ✅ 회원가입 페이지
+# ✅ 회원가입 페이지 (학교 선택 추가)
 def show_signup_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -424,6 +436,8 @@ def show_signup_page():
                                      help="8자 이상, 대문자/소문자/숫자 포함")
             email = st.text_input("이메일")
             student_id = st.text_input("학번")
+            # 학교 선택 필드 추가
+            school = st.selectbox("학교 선택", ["--- 선택 ---", "대원고", "대원여고"], index=0)
             
             col_a, col_b = st.columns(2)
             with col_a:
@@ -434,13 +448,17 @@ def show_signup_page():
                     st.rerun()
             
             if signup_btn:
-                success, msg = signup_user(username, password, email, student_id)
-                if success:
-                    st.success(msg)
-                    st.session_state.page = "login"
-                    st.rerun()
+                if school == "--- 선택 ---":
+                    st.error("학교를 선택해주세요.")
                 else:
-                    st.error(msg)
+                    # signup_user 함수에 school 값 전달
+                    success, msg = signup_user(username, password, email, student_id, school)
+                    if success:
+                        st.success(msg)
+                        st.session_state.page = "login"
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
 # ✅ 홈 페이지 (게시판)
 def show_home_page():
@@ -461,6 +479,7 @@ def show_home_page():
     for post in posts:
         post_id, title, author, created_at, likes = post
         
+        # Markdown을 클릭 가능한 요소로 사용하고 버튼으로 상세보기 링크
         post_html = f"""
         <div class="post-card">
             <div class="post-title">{title}</div>
@@ -471,10 +490,12 @@ def show_home_page():
         """
         st.markdown(post_html, unsafe_allow_html=True)
         
-        if st.button("자세히 보기", key=f"view_{post_id}", type="secondary"):
+        # 버튼을 사용하여 페이지 이동 처리
+        if st.button("자세히 보기", key=f"view_{post_id}", type="secondary", use_container_width=True):
             st.session_state.page = "detail"
             st.session_state.selected_post_id = post_id
             st.rerun()
+        st.markdown('<div style="height:5px;"></div>', unsafe_allow_html=True) # 간격
 
 # ✅ 글쓰기 페이지
 def show_write_page():
@@ -530,20 +551,20 @@ def show_detail_page():
     with col1:
         is_liked = check_liked(post_id, username)
         like_label = "🖤 취소" if is_liked else "🤍 좋아요"
-        if st.button(like_label, type="secondary"):
+        if st.button(like_label, type="secondary", use_container_width=True):
             toggle_like(post_id, username)
             st.rerun()
     
     with col2:
         if real_author == username:
-            if st.button("🗑️ 삭제", type="secondary"):
+            if st.button("🗑️ 삭제", type="secondary", use_container_width=True):
                 if delete_post(post_id, username):
                     st.success("삭제되었습니다.")
                     st.session_state.page = "home"
                     st.rerun()
     
     with col3:
-        if st.button("🔙 목록", type="secondary"):
+        if st.button("🔙 목록", type="secondary", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
     
@@ -583,14 +604,15 @@ def show_detail_page():
                 else:
                     st.warning("댓글 내용을 입력하세요.")
 
-# ✅ 프로필 페이지
+# ✅ 프로필 페이지 (학교 정보 표시 추가)
 def show_profile_page():
     st.markdown('<div class="sub-header">👤 내 정보</div>', unsafe_allow_html=True)
     
     user = get_user_info(st.session_state.username)
     
     if user:
-        username, email, student_id, created_at = user
+        # get_user_info에서 school 필드를 추가로 받아옴
+        username, email, student_id, school, created_at = user 
         
         profile_html = f"""
         <div class="profile-card">
@@ -610,6 +632,11 @@ def show_profile_page():
             <div class="profile-item">
                 <div class="profile-label">학번</div>
                 <div class="profile-value">{student_id}</div>
+            </div>
+            
+            <div class="profile-item">
+                <div class="profile-label">학교</div>
+                <div class="profile-value">{school}</div>
             </div>
             
             <div class="profile-item" style="border:none;">
@@ -642,7 +669,7 @@ def main():
         if st.session_state.logged_in:
             st.success(f"**{st.session_state.username}**님 환영합니다!")
             
-            if st.button("🏠 홈", use_container_width=True, type="secondary"):
+            if st.button("🏠 홈 (게시판)", use_container_width=True, type="secondary"):
                 st.session_state.page = "home"
                 st.rerun()
             
