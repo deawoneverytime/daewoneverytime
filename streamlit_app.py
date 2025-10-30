@@ -183,7 +183,7 @@ def get_comments(post_id):
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🎓 대원대학교 에브리타임")
+        st.title("🎓 대원 에브리타임")
         st.subheader("로그인 / 회원가입")
 
         tab1, tab2 = st.tabs(["로그인", "회원가입"])
@@ -210,7 +210,7 @@ def show_login_page():
             # 학교 선택 UI 추가
             school = st.radio(
                 "학교 선택",
-                ["여고", "남고"],
+                ["대원여고", "대원고"],
                 index=0,
                 key="signup_school",
                 horizontal=True
