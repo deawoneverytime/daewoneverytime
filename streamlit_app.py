@@ -312,7 +312,7 @@ def show_home_page():
                     st.rerun()
             with col2:
                 if real_author == st.session_state.username:
-                    if st.button("🗑️ 삭제", key=f"del_{post_id}", type="secondary"):
+                    if st.button("🗑️ 게시글 삭제", key=f"del_{post_id}", type="secondary"):
                         delete_post(post_id)
                         st.success("게시글 및 관련 댓글이 모두 삭제 완료!")
                         st.rerun()
@@ -363,7 +363,7 @@ def show_write_page():
     st.markdown("---")
     
     title = st.text_input("제목")
-    content = st.text_area("내용", height=300)
+    content = st.text_area("내용을 적어주세요.", height=300)
     anonymous = st.checkbox("익명으로 작성")
 
     col1, col2 = st.columns(2)
