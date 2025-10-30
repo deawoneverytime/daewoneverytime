@@ -161,6 +161,15 @@ def delete_post(post_id):
     conn.close()
     return False
 
+# ✅ 게시글 좋아요 처리
+def like_post(post_id):
+    conn = sqlite3.connect("data.db")
+    c = conn.cursor()
+    # likes 컬럼의 값을 1 증가시킵니다.
+    c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
+    conn.commit()
+    conn.close()
+
 # ✅ 댓글 추가
 def add_comment(post_id, content, is_anonymous=False):
     author = "익명" if is_anonymous else st.session_state.username
