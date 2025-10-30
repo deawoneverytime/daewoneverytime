@@ -54,6 +54,15 @@ def init_db():
         created_at TEXT,
         FOREIGN KEY(post_id) REFERENCES posts(id)
     )''')
+    
+    # ✅ 게시글 좋아요 기록 테이블 (중복 좋아요 방지용)
+    c.execute('''CREATE TABLE IF NOT EXISTS likes_log (
+        user_id TEXT,
+        post_id INTEGER,
+        PRIMARY KEY (user_id, post_id),
+        FOREIGN KEY(user_id) REFERENCES users(username),
+        FOREIGN KEY(post_id) REFERENCES posts(id)
+    )''')
 
     conn.commit()
     conn.close()
@@ -161,12 +170,26 @@ def delete_post(post_id):
     conn.close()
     return False
 
-# ✅ 게시글 좋아요 처리
+# ✅ 게시글 좋아요 처리 (중복 방지 로직 추가)
 def like_post(post_id):
+    username = st.session_state.username # 현재 사용자 이름 가져오기
     conn = sqlite3.connect("data.db")
     c = conn.cursor()
-    # likes 컬럼의 값을 1 증가시킵니다.
+
+    # 1. 중복 좋아요 확인: likes_log에서 해당 유저가 이 게시물에 좋아요를 눌렀는지 확인
+    c.execute("SELECT * FROM likes_log WHERE user_id = ? AND post_id = ?", (username, post_id))
+    if c.fetchone():
+        conn.close()
+        # 이미 좋아요를 눌렀다면 아무것도 하지 않고 함수 종료
+        st.info("이미 좋아요를 누르셨습니다.")
+        return
+
+    # 2. 좋아요 수 증가
     c.execute("UPDATE posts SET likes = likes + 1 WHERE id = ?", (post_id,))
+    
+    # 3. 좋아요 기록 추가 (likes_log에 기록)
+    c.execute("INSERT INTO likes_log (user_id, post_id) VALUES (?, ?)", (username, post_id))
+
     conn.commit()
     conn.close()
 
