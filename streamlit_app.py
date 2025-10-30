@@ -192,7 +192,7 @@ PASSWORD_REGEX = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
 # ✅ DB 초기화 (school 컬럼 추가 및 마이그레이션 로직 포함)
 def init_db():
 conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+c = conn.cursor()
     
     # 사용자 테이블 (school 컬럼 추가)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
