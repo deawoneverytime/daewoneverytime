@@ -56,12 +56,12 @@ def hash_password(password):
 
 # ✅ 학교 정보 및 스타일 가져오기
 def get_school_style(school_code):
-    if school_code == "여고":
+    if school_code == "대원여고":
         # Hot Pink
         return "대원여고", "#FF69B4"
-    elif school_code == "남고":
+    elif school_code == "대원고":
         # Dodger Blue
-        return "대원남고", "#1E90FF"
+        return "대원고", "#1E90FF"
     # Fallback
     return "학교 정보 없음", "#808080"
 
